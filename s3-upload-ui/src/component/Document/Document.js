@@ -1,357 +1,317 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { APP_API_URL, downloadFile } from "../../constant";
 import axios from "axios";
 import { Storage } from "aws-amplify";
 import { useNavigate } from "react-router-dom";
-import DocumentTable from "./DocumentTable";
-import SearchResultTable from "./SearchResultTable";
-
-// import "./MyProfile.css";
+import { 
+  Container, 
+  Header, 
+  SpaceBetween, 
+  Table, 
+  Box, 
+  Button,
+  TextFilter,
+  Pagination,
+  SegmentedControl,
+  Modal,
+  ButtonDropdown
+} from '@cloudscape-design/components';
+import { filesize } from "filesize";
 
 function Document(props) {
   const { user, genInfor, setGenInfor } = props;
   const [docs, setDocs] = useState([]);
-  const [mod, setMod] = useState(0); // different 1 is normal mod, 1 is selecting mod
-  const [deleteList, setDeleteList] = useState([]);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [keyword, setKeyword] = useState("");
+  const [searchAttribute, setSearchAttribute] = useState("name");
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const itemsPerPage = 10;
+  
   const navigate = useNavigate();
-  const deleteEl = useRef(null);
-  const selectEl = useRef(null);
+
   const fieldTrans = {
     name: "file.S",
     tag: "tag.S",
     type: "type.S",
   };
-  const [keyword, setKeyword] = useState("");
-  const [attribute, setAttribute] = useState("name");
-  const [searchResult, setSearchResult] = useState([]);
+
   useEffect(() => {
     loadDocs();
   }, []);
 
-  const redirectPage = () => {
-    navigate("/upload");
-  };
-
-  var timer = 0;
-  // const attribute = useRef(null);
   useEffect(() => {
     if (keyword) {
-      search(keyword);
+      search();
+    } else {
+      setIsSearching(false);
     }
-  }, [attribute]);
+  }, [searchAttribute, keyword]);
 
-  const searchDocs = (event) => {
-    clearTimeout(timer);
-    // if (searchEl.current.classList[1] === "non-active") {
-    //   welcome.current.classList.toggle("non-active");
-    //   searchEl.current.classList.remove("non-active");
-    // }
-    setKeyword(event.target.value);
-    timer = setTimeout(() => search(event.target.value), 250);
+  const loadDocs = async () => {
+    setLoading(true);
+    try {
+      const response = await axios({
+        method: "get",
+        url: `${APP_API_URL}/docs/${user.id}`,
+      });
+      setDocs(response.data);
+      setTotalItems(response.data.length);
+    } catch (error) {
+      console.error("Error loading documents:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  async function search(key) {
+  const search = async () => {
+    if (!keyword) {
+      setIsSearching(false);
+      return;
+    }
+    
+    setIsSearching(true);
+    setLoading(true);
+    
     const params = {
-      key: key,
-      field: fieldTrans[attribute],
+      key: keyword,
+      field: fieldTrans[searchAttribute],
     };
-    console.log("params: ", params);
+    
     try {
-      // Search document follow attribute
       const response = await axios({
         method: "get",
         url: `${APP_API_URL}/docs/${user.id}/search`,
         params: params,
       });
-      console.log("Search successful: ", response);
-      setSearchResult(response.data.hits.hits);
-    } catch {
-      alert("Error occured while search the documents");
+      
+      const results = response.data.hits.hits.map(hit => hit._source);
+      setSearchResults(results);
+      setTotalItems(results.length);
+    } catch (error) {
+      console.error("Error searching documents:", error);
+    } finally {
+      setLoading(false);
     }
-    // setSearchResult([
-    //   {
-    //     file: "AndroidCookBook.jpeg",
-    //     modified: "17/04/2023",
-    //     type: "jpeg",
-    //     size: "78.07KB",
-    //     tag: "",
-    //   },
-    // ]);
-  }
-
-  const loadDocs = () => {
-    axios({
-      method: "get",
-      url: `${APP_API_URL}/docs/${user.id}`,
-    })
-      .then((res) => {
-        setDocs(res.data);
-      })
-      .catch((err) => {
-        console.log(err);
-      });
   };
 
-  useEffect(() => {
-    if (mod === 1) {
-      selectEl.current.classList.toggle("non-active");
-      deleteEl.current.classList.remove("non-active");
+  const handleDownload = async (item) => {
+    try {
+      await downloadFile(item.file, item.path);
+    } catch (error) {
+      console.error("Error downloading file:", error);
     }
-    if (mod === 2) {
-      deleteEl.current.classList.toggle("non-active");
-      selectEl.current.classList.remove("non-active");
-    }
-  }, [mod]);
-
-  const checkedDoc = (index, doc, event) => {
-    let isChecked = event.target.checked;
-    let currentList = deleteList;
-
-    if (!isChecked) {
-      currentList.splice(index, 1);
-    } else {
-      currentList.splice(index, 0, doc);
-    }
-    console.log("currentList ", currentList);
-    setDeleteList(currentList);
   };
 
-  const navigateToDetailPage = (index) => {
-    if (mod === 1) return;
-    const docItem = docs[index];
-    navigate(`detail/${docItem.file}`, { state: docItem });
+  const handleDelete = async () => {
+    if (selectedItems.length === 0) return;
+    
+    setDeleteModalVisible(true);
   };
 
-  const deleteDocs = async (e) => {
-    e.preventDefault();
-    window.confirm("Are you sure you wish to delete that files?")
-      ? onConfirm("confirm")
-      : onCancel("cancel");
-  };
-
-  const onCancel = () => {
-    return;
-  };
-
-  const onConfirm = async () => {
+  const confirmDelete = async () => {
+    setLoading(true);
     let totalSizeFile = genInfor.size;
     let totalUploadedFiles = genInfor.amount;
-    for (let i = 0; i < deleteList.length; i++) {
-      try {
-        await Storage.remove(deleteList[i].file, { level: "protected" });
-
+    
+    try {
+      for (const item of selectedItems) {
+        await Storage.remove(item.file, { level: "protected" });
+        
         await axios({
           method: "delete",
           url: `${APP_API_URL}/docs/${user.id}`,
           params: {
-            file: deleteList[i].file,
+            file: item.file,
           },
         });
-        totalSizeFile -= deleteList[i].size;
+        
+        totalSizeFile -= item.size;
         totalUploadedFiles -= 1;
-      } catch {
-        alert("Error occured while delete the documents");
-        break;
       }
-    }
-
-    const response = await axios({
-      method: "post",
-      url: `${APP_API_URL}/docs/${user.id}/gen`,
-      data: {
+      
+      await axios({
+        method: "post",
+        url: `${APP_API_URL}/docs/${user.id}/gen`,
+        data: {
+          size: totalSizeFile,
+          amount: totalUploadedFiles,
+        },
+      });
+      
+      setGenInfor({
         size: totalSizeFile,
         amount: totalUploadedFiles,
-      },
-    });
-
-    setDeleteList([]);
-    setMod(2);
-    setGenInfor({
-      size: totalSizeFile,
-      amount: totalUploadedFiles,
-    });
-    loadDocs();
+      });
+      
+      setSelectedItems([]);
+      loadDocs();
+    } catch (error) {
+      console.error("Error deleting documents:", error);
+    } finally {
+      setDeleteModalVisible(false);
+      setLoading(false);
+    }
   };
-  return (
-    <div className="upload-body">
-      <div className="title content-header">My Document</div>
-      <div className="content-body">
-        {/* <div className="home-header"> */}
-        <div className="row" ref={selectEl}>
-          <div className="col">
-            <input
-              className="text-normal"
-              placeholder="Search..."
-              onKeyUp={searchDocs}
-            ></input>
-            <i
-              className="fa-solid fa-magnifying-glass"
-              style={{ width: "10%" }}
-            ></i>
-            <div className="row pt-2">
-              <div className="col-5">
-                <div className="attribute-item">
-                  <input
-                    className="check-input"
-                    type="radio"
-                    name="flexRadioDefault"
-                    id="name"
-                    value="Name"
-                    defaultChecked
-                    onChange={(e) => setAttribute(e.target.id)}
-                  />
-                  &nbsp;&nbsp;
-                  <label className="text-normal">Name</label>
-                </div>
-                <div className="attribute-item">
-                  <input
-                    className="check-input"
-                    type="radio"
-                    name="flexRadioDefault"
-                    id="type"
-                    value="Type"
-                    onChange={(e) => setAttribute(e.target.id)}
-                  />
-                  &nbsp;&nbsp;
-                  <label className="text-normal">Type</label>
-                </div>
-              </div>
-              <div className="col-5">
-                <div className="attribute-item">
-                  <input
-                    className="check-input"
-                    type="radio"
-                    name="flexRadioDefault"
-                    id="tag"
-                    value="Tag"
-                    onChange={(e) => setAttribute(e.target.id)}
-                  />
-                  &nbsp;&nbsp;
-                  <label className="text-normal">Tag</label>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="col" style={{ textAlign: "right" }}>
-            <button
-              type="button"
-              className="btn btn-gray text-normal"
-              onClick={redirectPage}
-            >
-              <i className="fa-solid fa-upload icon-sm" aria-hidden="true"></i>
-              &nbsp;Upload
-            </button>
-            &nbsp;&nbsp;
-            <button
-              type="button"
-              className="btn btn-outline-secondary btn-gray text-normal"
-              onClick={() => setMod(1)}
-            >
-              <i className="fa-solid fa-arrow-pointer"></i>
-              &nbsp;Select
-            </button>
-          </div>
-        </div>
-        {/* </div> */}
-        <div className="mod-delete non-active" ref={deleteEl}>
-          <button
-            type="button"
-            className="btn btn-outline-secondary btn-gray text-normal"
-            onClick={deleteDocs}
-          >
-            <i className="fa-solid fa-trash"></i>
-            &nbsp;Delete
-          </button>
-          &nbsp;&nbsp;
-          <button
-            type="button"
-            className="btn btn-outline-secondary btn-gray text-normal"
-            onClick={() => setMod(2)}
-          >
-            <i className="fa-sharp fa-regular fa-circle-check"></i>
-            &nbsp;Done
-          </button>
-        </div>
-        {!keyword && (
-          <DocumentTable
-            data={docs}
-            user={user}
-            mod={mod}
-            message="No file exists"
-            checkedDoc={checkedDoc}
-            navigateToDetailPage={navigateToDetailPage}
-          ></DocumentTable>
-        )}
-        {keyword && (
-          <SearchResultTable
-            data={searchResult}
-            user={user}
-            mod={mod}
-            message="Files not found"
-            checkedDoc={checkedDoc}
-            navigateToDetailPage={navigateToDetailPage}
-          ></SearchResultTable>
-        )}
 
-        {/* <div className="pt-3">
-          <div className="row table-title text-normal text-black pt-70 pb-70">
-            <div className="col-11 row">
-              <div className="col-3">Title</div>
-              <div className="col-2 bleft">Modified</div>
-              <div className="col-2 bleft">Type</div>
-              <div className="col-1 bleft">Size</div>
-              <div className="col bleft">Tag</div>
-            </div>
-          </div>
-          <div className="document-table">
-            {!keyword &&
-              docs.length !== 0 &&
-              docs.map((doc, index) => (
-                <div
-                  className="row table-body text-normal pt-25 pb-25 mt-2"
-                  key={index}
+  const handleViewDetails = (item) => {
+    navigate(`detail/${item.file}`, { state: item });
+  };
+
+  const displayedItems = isSearching ? searchResults : docs;
+  const paginatedItems = displayedItems.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  return (
+    <Container>
+      <SpaceBetween size="l">
+        <Header
+          variant="h1"
+          actions={
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button iconName="upload" onClick={() => navigate("/upload")}>
+                Upload
+              </Button>
+              <Button 
+                iconName="remove" 
+                disabled={selectedItems.length === 0}
+                onClick={handleDelete}
+              >
+                Delete Selected
+              </Button>
+            </SpaceBetween>
+          }
+        >
+          My Documents
+        </Header>
+        
+        <SpaceBetween size="m">
+          <TextFilter
+            filteringText={keyword}
+            filteringPlaceholder="Search documents..."
+            onChange={({ detail }) => setKeyword(detail.filteringText)}
+          />
+          
+          <SegmentedControl
+            selectedId={searchAttribute}
+            onChange={({ detail }) => setSearchAttribute(detail.selectedId)}
+            label="Search by"
+            options={[
+              { text: "Name", id: "name" },
+              { text: "Type", id: "type" },
+              { text: "Tag", id: "tag" }
+            ]}
+          />
+        </SpaceBetween>
+        
+        <Table
+          columnDefinitions={[
+            { 
+              id: "name", 
+              header: "Name", 
+              cell: item => item.file,
+              sortingField: "file"
+            },
+            { 
+              id: "modified", 
+              header: "Modified", 
+              cell: item => item.modified || "—",
+              sortingField: "modified"
+            },
+            { 
+              id: "type", 
+              header: "Type", 
+              cell: item => item.type || "—",
+              sortingField: "type"
+            },
+            { 
+              id: "size", 
+              header: "Size", 
+              cell: item => filesize(item.size, { base: 1, standard: "jedec" }),
+              sortingField: "size"
+            },
+            { 
+              id: "tag", 
+              header: "Tag", 
+              cell: item => item.tag || "—",
+              sortingField: "tag"
+            },
+            {
+              id: "actions",
+              header: "Actions",
+              cell: item => (
+                <ButtonDropdown
+                  items={[
+                    { text: "Download", id: "download" },
+                    { text: "View details", id: "details" }
+                  ]}
+                  onItemClick={({ detail }) => {
+                    if (detail.id === "download") {
+                      handleDownload(item);
+                    } else if (detail.id === "details") {
+                      handleViewDetails(item);
+                    }
+                  }}
                 >
-                  <div
-                    className="col-11 row"
-                    onClick={() => navigateToDetailPage(index)}
-                  >
-                    <div className="col-3 hidden-long">
-                      <input
-                        className={mod !== 1 ? "non-active" : ""}
-                        type="checkbox"
-                        style={{ width: "10%" }}
-                        onChange={(event) => checkedDoc(index, doc, event)}
-                      />
-                      {doc.file}
-                    </div>
-                    <div className="col-2">{doc.modified}</div>
-                    <div className="col-2 hidden-long">{doc.type}</div>
-                    <div className="col-1">{doc.size}</div>
-                    <div className="col-3 hidden-long">{doc.tag}</div>
-                  </div>
-                  <div className="col">
-                    <div className="col down-icon">
-                      <i
-                        className="fa-sharp fa-solid fa-circle-down"
-                        onClick={() =>
-                          downloadFile(doc.file, doc.path, user.identityId)
-                        }
-                      ></i>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            {!keyword && docs.length === 0 && <div className="text-normal" style={{ textAlign: "center" }}>
-              No file exists
-              </div>}
-            
-            {keyword && <div className="text-normal" style={{ textAlign: "center" }}>
-              
-            </div>}
-          </div>
-        </div> */}
-      </div>
-    </div>
+                  Actions
+                </ButtonDropdown>
+              )
+            }
+          ]}
+          items={paginatedItems}
+          loading={loading}
+          loadingText="Loading documents"
+          selectionType="multi"
+          selectedItems={selectedItems}
+          onSelectionChange={({ detail }) => setSelectedItems(detail.selectedItems)}
+          empty={
+            <Box textAlign="center" color="inherit">
+              <b>{isSearching ? "No matching documents" : "No documents"}</b>
+              <Box padding={{ bottom: "s" }} variant="p" color="inherit">
+                {isSearching 
+                  ? "No documents match your search criteria" 
+                  : "Upload documents to get started"
+                }
+              </Box>
+            </Box>
+          }
+          pagination={
+            <Pagination
+              currentPageIndex={currentPage}
+              pagesCount={Math.max(1, Math.ceil(totalItems / itemsPerPage))}
+              onChange={({ detail }) => setCurrentPage(detail.currentPageIndex)}
+            />
+          }
+        />
+      </SpaceBetween>
+      
+      <Modal
+        visible={deleteModalVisible}
+        onDismiss={() => setDeleteModalVisible(false)}
+        header="Confirm deletion"
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setDeleteModalVisible(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={confirmDelete}>
+                Delete
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        Are you sure you want to delete {selectedItems.length} selected document(s)?
+        This action cannot be undone.
+      </Modal>
+    </Container>
   );
 }
 

@@ -25,7 +25,7 @@ paths:
           default:
             statusCode: 200
             responseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Origin: "'https://dev.d3gk57lhevbrz2.amplifyapp.com'"
         passthroughBehavior: when_no_match
         httpMethod: POST #always POST
         type: aws_proxy
@@ -53,7 +53,7 @@ paths:
             responseParameters:
               method.response.header.Access-Control-Allow-Methods: "'POST, OPTIONS'"
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Origin: "'https://dev.d3gk57lhevbrz2.amplifyapp.com'"
         requestTemplates:
           application/json: '{"statusCode": 200}'
         passthroughBehavior: "when_no_match"
@@ -77,7 +77,7 @@ paths:
           default:
             statusCode: 200
             responseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Origin: "'https://dev.d3gk57lhevbrz2.amplifyapp.com'"
         passthroughBehavior: when_no_match
         httpMethod: POST #always POST
         type: aws_proxy
@@ -99,7 +99,7 @@ paths:
           default:
             statusCode: 200
             responseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Origin: "'https://dev.d3gk57lhevbrz2.amplifyapp.com'"
         passthroughBehavior: when_no_match
         httpMethod: POST #always POST
         type: aws_proxy
@@ -127,7 +127,7 @@ paths:
             responseParameters:
               method.response.header.Access-Control-Allow-Methods: "'GET, DELETE, OPTIONS'"
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Origin: "'https://dev.d3gk57lhevbrz2.amplifyapp.com'"
         requestTemplates:
           application/json: '{"statusCode": 200}'
         passthroughBehavior: "when_no_match"
@@ -151,7 +151,7 @@ paths:
           default:
             statusCode: 200
             responseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Origin: "'https://dev.d3gk57lhevbrz2.amplifyapp.com'"
         passthroughBehavior: when_no_match
         httpMethod: POST #always POST
         type: aws_proxy
@@ -173,7 +173,7 @@ paths:
           default:
             statusCode: 200
             responseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Origin: "'https://dev.d3gk57lhevbrz2.amplifyapp.com'"
         passthroughBehavior: when_no_match
         httpMethod: POST #always POST
         type: aws_proxy
@@ -199,10 +199,14 @@ paths:
           default:
             statusCode: "200"
             responseParameters:
-              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Methods: "'GET, POST, OPTIONS'"
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Origin: "'https://dev.d3gk57lhevbrz2.amplifyapp.com'"
         requestTemplates:
           application/json: '{"statusCode": 200}'
         passthroughBehavior: "when_no_match"
         type: "mock"
+definitions:
+  Empty:
+    type: "object"
+    title: "Empty Schema"

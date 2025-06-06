@@ -5,17 +5,20 @@ Description: FCJ DMS - Unified SAM Template
 Parameters:
   DocumentStoreBucketName:
     Type: String
-    Default: fcjdmsstore
+    Default: vibdmsstore2026
   WebStoreBucketName:
     Type: String
-    Default: fcjdmswebstore
+    Default: vibdmswebstore2026
+  AmplifyAppDomain:
+    Type: String
+    Default: https://dev.d3gk57lhevbrz2.amplifyapp.com
 
 # --- Auth Resources ---
 Resources:
   UserPool:
     Type: AWS::Cognito::UserPool
     Properties:
-      UserPoolName: fcj-dms-userpool
+      UserPoolName: vibdms-app-2026-userpool
       AutoVerifiedAttributes: [email]
       Policies:
         PasswordPolicy:
@@ -28,18 +31,85 @@ Resources:
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
-      ClientName: fcj-dms-client
+      ClientName: vibdms-app-2026-client
       UserPoolId: !Ref UserPool
       GenerateSecret: false
 
   IdentityPool:
     Type: AWS::Cognito::IdentityPool
     Properties:
-      IdentityPoolName: fcj-dms-identitypool
+      IdentityPoolName: vibdms-app-2026-identitypool
       AllowUnauthenticatedIdentities: false
       CognitoIdentityProviders:
         - ClientId: !Ref UserPoolClient
           ProviderName: !GetAtt UserPool.ProviderName
+
+  # IAM Roles for Cognito Identity Pool
+  AuthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                cognito-identity.amazonaws.com:aud: !Ref IdentityPool
+              ForAnyValue:StringLike:
+                cognito-identity.amazonaws.com:amr: authenticated
+      Policies:
+        - PolicyName: s3-access-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub arn:aws:s3:::${DocumentStoreBucketName}
+                  - !Sub arn:aws:s3:::${DocumentStoreBucketName}/*
+
+  UnauthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                cognito-identity.amazonaws.com:aud: !Ref IdentityPool
+              ForAnyValue:StringLike:
+                cognito-identity.amazonaws.com:amr: unauthenticated
+      Policies:
+        - PolicyName: s3-read-only-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::${WebStoreBucketName}
+                  - !Sub arn:aws:s3:::${WebStoreBucketName}/*
+
+  IdentityPoolRoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref IdentityPool
+      Roles:
+        authenticated: !GetAtt AuthenticatedRole.Arn
+        unauthenticated: !GetAtt UnauthenticatedRole.Arn
 
 # --- Storage Resources ---
   DocumentBucket:
@@ -52,7 +122,7 @@ Resources:
         CorsRules:
           - AllowedHeaders: ['*']
             AllowedMethods: [GET, HEAD, PUT, POST, DELETE]
-            AllowedOrigins: ['*']
+            AllowedOrigins: [!Ref AmplifyAppDomain]
             ExposedHeaders: [ETag]
             MaxAge: 3000
 
@@ -62,6 +132,13 @@ Resources:
       BucketName: !Ref WebStoreBucketName
       WebsiteConfiguration:
         IndexDocument: index.html
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, HEAD, PUT, POST, DELETE]
+            AllowedOrigins: [!Ref AmplifyAppDomain]
+            ExposedHeaders: [ETag]
+            MaxAge: 3000
 
   DocsTable:
     Type: AWS::DynamoDB::Table
@@ -207,6 +284,10 @@ Resources:
     Type: AWS::Serverless::Api
     Properties:
       StageName: dev
+      Cors:
+        AllowMethods: "'GET,POST,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: !Ref AmplifyAppDomain
       DefinitionBody:
         Fn::Transform:
           Name: AWS::Include
@@ -222,4 +303,4 @@ Outputs:
     Value: !Ref WebBucket
   UserPoolId:
     Description: "Cognito User Pool ID"
-    Value: !Ref UserPool 
+    Value: !Ref UserPool
