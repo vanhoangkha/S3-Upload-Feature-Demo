@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Storage } from 'aws-amplify';
 import {
   Container,
   Header,
@@ -8,112 +9,254 @@ import {
   ColumnLayout,
   Cards,
   Button,
-  Link,
-  TextContent
+  ProgressBar,
+  StatusIndicator
 } from '@cloudscape-design/components';
-import { Auth } from 'aws-amplify';
 import AppLayout from '../layouts/AppLayout';
+import { filesize } from 'filesize';
 
 const Home = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const [recentFiles, setRecentFiles] = useState([]);
+  const [storageStats, setStorageStats] = useState({
+    totalFiles: 0,
+    totalSize: 0,
+    imageCount: 0,
+    documentCount: 0,
+    otherCount: 0
+  });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkUser = async () => {
-      try {
-        const userData = await Auth.currentAuthenticatedUser();
-        setUser(userData);
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-        navigate('/login');
-      }
-    };
+    fetchRecentFiles();
+  }, []);
 
-    checkUser();
-  }, [navigate]);
-
-  const cardItems = [
-    {
-      header: "Document Management",
-      description: "Upload, download, and manage your documents securely in the cloud.",
-      footer: <Button onClick={() => navigate('/documents')}>View Documents</Button>
-    },
-    {
-      header: "User Profile",
-      description: "View and update your profile information.",
-      footer: <Button onClick={() => navigate('/profile')}>View Profile</Button>
-    },
-    {
-      header: "Documentation",
-      description: "Learn more about how to use the S3 Upload Feature Demo.",
-      footer: <Link href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/upload-objects.html" external>View Documentation</Link>
+  const fetchRecentFiles = async () => {
+    setLoading(true);
+    try {
+      const result = await Storage.list('', { level: 'private' });
+      
+      // Filter out folders
+      const files = result.filter(item => !item.key.endsWith('/'));
+      
+      // Sort by last modified (newest first)
+      files.sort((a, b) => new Date(b.lastModified) - new Date(a.lastModified));
+      
+      // Take only the 5 most recent files
+      const recent = files.slice(0, 5);
+      
+      // Get URLs for the recent files
+      const recentWithUrls = await Promise.all(
+        recent.map(async (item) => {
+          try {
+            const url = await Storage.get(item.key, { level: 'private', expires: 60 });
+            return {
+              key: item.key,
+              name: item.key.split('/').pop(),
+              lastModified: new Date(item.lastModified),
+              size: item.size,
+              url,
+              type: item.key.split('.').pop().toLowerCase()
+            };
+          } catch (error) {
+            console.error(`Error getting URL for ${item.key}:`, error);
+            return {
+              key: item.key,
+              name: item.key.split('/').pop(),
+              lastModified: new Date(item.lastModified),
+              size: item.size,
+              url: null,
+              type: item.key.split('.').pop().toLowerCase()
+            };
+          }
+        })
+      );
+      
+      setRecentFiles(recentWithUrls);
+      
+      // Calculate storage statistics
+      const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'];
+      const documentTypes = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'];
+      
+      const stats = {
+        totalFiles: files.length,
+        totalSize: files.reduce((sum, file) => sum + file.size, 0),
+        imageCount: files.filter(file => {
+          const ext = file.key.split('.').pop().toLowerCase();
+          return imageTypes.includes(ext);
+        }).length,
+        documentCount: files.filter(file => {
+          const ext = file.key.split('.').pop().toLowerCase();
+          return documentTypes.includes(ext);
+        }).length,
+        otherCount: files.filter(file => {
+          const ext = file.key.split('.').pop().toLowerCase();
+          return !imageTypes.includes(ext) && !documentTypes.includes(ext);
+        }).length
+      };
+      
+      setStorageStats(stats);
+    } catch (error) {
+      console.error('Error fetching files:', error);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  const getFileIcon = (type) => {
+    const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'];
+    const documentTypes = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'];
+    
+    if (imageTypes.includes(type)) {
+      return '📷';
+    } else if (documentTypes.includes(type)) {
+      return '📄';
+    } else {
+      return '📁';
+    }
+  };
+
+  const handleDownload = async (item) => {
+    try {
+      window.open(item.url, '_blank');
+    } catch (error) {
+      console.error('Error downloading file:', error);
+    }
+  };
 
   return (
-    <AppLayout breadcrumbs={[]}>
+    <AppLayout
+      breadcrumbs={[{ text: 'Home', href: '/' }]}
+      contentType="default"
+    >
       <SpaceBetween size="l">
         <Container
-          header={<Header variant="h2">Welcome to S3 Upload Feature Demo</Header>}
+          header={
+            <Header variant="h2">
+              Welcome to S3 Upload Demo
+            </Header>
+          }
         >
-          <Box padding="l">
-            <TextContent>
-              <p>
-                This application demonstrates secure file management using Amazon S3, 
-                with authentication powered by Amazon Cognito. You can upload, download, 
-                and manage your documents with ease.
-              </p>
-            </TextContent>
-          </Box>
+          <SpaceBetween size="l">
+            <Box variant="p">
+              This application demonstrates secure file uploads to Amazon S3 using pre-signed URLs.
+              You can upload files, manage your documents, and download them securely.
+            </Box>
+            
+            <ColumnLayout columns={2} variant="text-grid">
+              <SpaceBetween size="l">
+                <div>
+                  <Box variant="h3">Quick Actions</Box>
+                  <SpaceBetween size="m" direction="horizontal">
+                    <Button
+                      variant="primary"
+                      iconName="upload"
+                      onClick={() => navigate('/documents')}
+                    >
+                      Upload Files
+                    </Button>
+                    <Button
+                      iconName="folder"
+                      onClick={() => navigate('/documents')}
+                    >
+                      View All Documents
+                    </Button>
+                  </SpaceBetween>
+                </div>
+                
+                <div>
+                  <Box variant="h3">Storage Usage</Box>
+                  <ProgressBar
+                    value={30} // This would be calculated based on quota
+                    label="Storage used"
+                    description={`${filesize(storageStats.totalSize)} of 5 GB`}
+                  />
+                </div>
+              </SpaceBetween>
+              
+              <SpaceBetween size="l">
+                <div>
+                  <Box variant="h3">Storage Statistics</Box>
+                  <SpaceBetween size="s">
+                    <div>Total Files: <strong>{storageStats.totalFiles}</strong></div>
+                    <div>Images: <strong>{storageStats.imageCount}</strong></div>
+                    <div>Documents: <strong>{storageStats.documentCount}</strong></div>
+                    <div>Other Files: <strong>{storageStats.otherCount}</strong></div>
+                    <div>Total Size: <strong>{filesize(storageStats.totalSize)}</strong></div>
+                  </SpaceBetween>
+                </div>
+              </SpaceBetween>
+            </ColumnLayout>
+          </SpaceBetween>
         </Container>
-
+        
         <Container
-          header={<Header variant="h2">Quick Actions</Header>}
+          header={
+            <Header
+              variant="h2"
+              actions={
+                <Button onClick={() => navigate('/documents')}>View All</Button>
+              }
+            >
+              Recent Files
+            </Header>
+          }
         >
-          <Cards
-            cardDefinition={{
-              header: item => <Header variant="h3">{item.header}</Header>,
-              sections: [
-                {
-                  id: "description",
-                  content: item => item.description
-                },
-                {
-                  id: "footer",
-                  content: item => item.footer
-                }
-              ]
-            }}
-            cardsPerRow={[
-              { cards: 1 },
-              { minWidth: 500, cards: 3 }
-            ]}
-            items={cardItems}
-            loadingText="Loading resources"
-            empty={
-              <Box textAlign="center" color="inherit">
-                <b>No resources</b>
-                <Box padding={{ bottom: "s" }} variant="p" color="inherit">
-                  No resources to display.
+          {loading ? (
+            <StatusIndicator type="loading">Loading recent files</StatusIndicator>
+          ) : recentFiles.length > 0 ? (
+            <Cards
+              items={recentFiles}
+              cardDefinition={{
+                header: item => (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '24px' }}>{getFileIcon(item.type)}</span>
+                    <span>{item.name}</span>
+                  </div>
+                ),
+                sections: [
+                  {
+                    id: "lastModified",
+                    header: "Last Modified",
+                    content: item => item.lastModified.toLocaleString()
+                  },
+                  {
+                    id: "size",
+                    header: "Size",
+                    content: item => filesize(item.size)
+                  },
+                  {
+                    id: "actions",
+                    header: "Actions",
+                    content: item => (
+                      <Button onClick={() => handleDownload(item)}>Download</Button>
+                    )
+                  }
+                ]
+              }}
+              cardsPerRow={[
+                { cards: 1 },
+                { minWidth: 500, cards: 2 }
+              ]}
+              empty={
+                <Box textAlign="center" color="inherit">
+                  <b>No recent files</b>
+                  <Box padding={{ bottom: "s" }} variant="p" color="inherit">
+                    Upload your first file to get started.
+                  </Box>
+                  <Button onClick={() => navigate('/documents')}>Upload files</Button>
                 </Box>
+              }
+            />
+          ) : (
+            <Box textAlign="center" color="inherit">
+              <b>No recent files</b>
+              <Box padding={{ bottom: "s" }} variant="p" color="inherit">
+                Upload your first file to get started.
               </Box>
-            }
-          />
-        </Container>
-
-        <Container
-          header={<Header variant="h2">System Status</Header>}
-        >
-          <ColumnLayout columns={2} variant="text-grid">
-            <div>
-              <Box variant="awsui-key-label">Authentication</Box>
-              <Box variant="awsui-value-large">Connected</Box>
-            </div>
-            <div>
-              <Box variant="awsui-key-label">Storage</Box>
-              <Box variant="awsui-value-large">Available</Box>
-            </div>
-          </ColumnLayout>
+              <Button onClick={() => navigate('/documents')}>Upload files</Button>
+            </Box>
+          )}
         </Container>
       </SpaceBetween>
     </AppLayout>

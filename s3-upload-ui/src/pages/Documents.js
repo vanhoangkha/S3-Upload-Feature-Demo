@@ -10,14 +10,15 @@ import {
   TextFilter,
   Container,
   Modal,
-  FormField,
-  Input,
   Alert,
-  ProgressBar,
-  StatusIndicator
+  StatusIndicator,
+  Cards,
+  CollectionPreferences,
+  Flashbar
 } from '@cloudscape-design/components';
 import { filesize } from 'filesize';
 import AppLayout from '../layouts/AppLayout';
+import FileUploader from '../components/FileUploader';
 
 const Documents = () => {
   const [documents, setDocuments] = useState([]);
@@ -26,15 +27,17 @@ const Documents = () => {
   const [currentPageIndex, setCurrentPageIndex] = useState(1);
   const [filterText, setFilterText] = useState('');
   const [uploadModalVisible, setUploadModalVisible] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState('');
-  const [selectedFile, setSelectedFile] = useState(null);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
-
-  const pageSize = 10;
+  const [viewType, setViewType] = useState('table');
+  const [preferences, setPreferences] = useState({
+    pageSize: 10,
+    visibleContent: ['name', 'lastModified', 'size', 'actions'],
+    wrapLines: false,
+    stripedRows: false,
+  });
+  const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
     fetchDocuments();
@@ -55,7 +58,8 @@ const Documents = () => {
               name: item.key.split('/').pop(),
               lastModified: new Date(item.lastModified),
               size: item.size,
-              url
+              url,
+              type: item.key.split('.').pop().toLowerCase()
             };
           } catch (error) {
             console.error(`Error getting URL for ${item.key}:`, error);
@@ -64,7 +68,8 @@ const Documents = () => {
               name: item.key.split('/').pop(),
               lastModified: new Date(item.lastModified),
               size: item.size,
-              url: null
+              url: null,
+              type: item.key.split('.').pop().toLowerCase()
             };
           }
         })
@@ -73,43 +78,13 @@ const Documents = () => {
       setDocuments(documentList.filter(Boolean));
     } catch (error) {
       console.error('Error fetching documents:', error);
+      addNotification({
+        type: 'error',
+        content: 'Failed to fetch documents',
+        dismissible: true
+      });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleFileChange = (event) => {
-    const file = event.target.files[0];
-    setSelectedFile(file);
-  };
-
-  const handleUpload = async () => {
-    if (!selectedFile) {
-      setUploadError('Please select a file to upload');
-      return;
-    }
-
-    setIsUploading(true);
-    setUploadError('');
-    setUploadProgress(0);
-
-    try {
-      await Storage.put(selectedFile.name, selectedFile, {
-        level: 'private',
-        progressCallback(progress) {
-          const progressPercentage = (progress.loaded / progress.total) * 100;
-          setUploadProgress(progressPercentage);
-        },
-      });
-      
-      setUploadModalVisible(false);
-      setSelectedFile(null);
-      fetchDocuments();
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      setUploadError('Failed to upload file. Please try again.');
-    } finally {
-      setIsUploading(false);
     }
   };
 
@@ -127,6 +102,12 @@ const Documents = () => {
       setDeleteModalVisible(false);
       setSelectedItems([]);
       fetchDocuments();
+      
+      addNotification({
+        type: 'success',
+        content: `Successfully deleted ${selectedItems.length} file(s)`,
+        dismissible: true
+      });
     } catch (error) {
       console.error('Error deleting files:', error);
       setDeleteError('Failed to delete files. Please try again.');
@@ -140,7 +121,28 @@ const Documents = () => {
       window.open(item.url, '_blank');
     } catch (error) {
       console.error('Error downloading file:', error);
+      addNotification({
+        type: 'error',
+        content: `Failed to download ${item.name}`,
+        dismissible: true
+      });
     }
+  };
+
+  const addNotification = (notification) => {
+    const id = Math.random().toString(36).substring(2, 11);
+    setNotifications(prev => [...prev, { id, ...notification }]);
+    
+    // Auto-dismiss after 5 seconds if dismissible
+    if (notification.dismissible) {
+      setTimeout(() => {
+        setNotifications(prev => prev.filter(n => n.id !== id));
+      }, 5000);
+    }
+  };
+
+  const dismissNotification = (id) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
   const filteredDocuments = documents.filter(item => 
@@ -148,134 +150,321 @@ const Documents = () => {
   );
 
   const paginatedDocuments = filteredDocuments.slice(
-    (currentPageIndex - 1) * pageSize,
-    currentPageIndex * pageSize
+    (currentPageIndex - 1) * preferences.pageSize,
+    currentPageIndex * preferences.pageSize
   );
 
+  const getFileIcon = (type) => {
+    const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'];
+    const documentTypes = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'];
+    
+    if (imageTypes.includes(type)) {
+      return '📷';
+    } else if (documentTypes.includes(type)) {
+      return '📄';
+    } else {
+      return '📁';
+    }
+  };
+
+  const columnDefinitions = [
+    {
+      id: 'name',
+      header: 'Name',
+      cell: item => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>{getFileIcon(item.type)}</span>
+          <span>{item.name}</span>
+        </div>
+      ),
+      sortingField: 'name'
+    },
+    {
+      id: 'lastModified',
+      header: 'Last Modified',
+      cell: item => item.lastModified.toLocaleString(),
+      sortingField: 'lastModified'
+    },
+    {
+      id: 'size',
+      header: 'Size',
+      cell: item => filesize(item.size),
+      sortingField: 'size'
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      cell: item => (
+        <Button onClick={() => handleDownload(item)}>Download</Button>
+      )
+    }
+  ];
+
   return (
-    <AppLayout breadcrumbs={[{ text: 'Documents', href: '/documents' }]}>
-      <SpaceBetween size="l">
-        <Table
-          loading={loading}
-          loadingText="Loading documents"
-          columnDefinitions={[
-            {
-              id: 'name',
-              header: 'Name',
-              cell: item => item.name,
-              sortingField: 'name'
-            },
-            {
-              id: 'lastModified',
-              header: 'Last Modified',
-              cell: item => item.lastModified.toLocaleString(),
-              sortingField: 'lastModified'
-            },
-            {
-              id: 'size',
-              header: 'Size',
-              cell: item => filesize(item.size),
-              sortingField: 'size'
-            },
-            {
-              id: 'actions',
-              header: 'Actions',
-              cell: item => (
-                <Button onClick={() => handleDownload(item)}>Download</Button>
-              )
-            }
-          ]}
-          items={paginatedDocuments}
-          selectionType="multi"
-          selectedItems={selectedItems}
-          onSelectionChange={({ detail }) => setSelectedItems(detail.selectedItems)}
-          header={
-            <Header
-              counter={`(${filteredDocuments.length})`}
-              actions={
-                <SpaceBetween direction="horizontal" size="xs">
-                  <Button 
-                    disabled={selectedItems.length === 0} 
-                    onClick={() => setDeleteModalVisible(true)}
-                  >
-                    Delete
-                  </Button>
-                  <Button variant="primary" onClick={() => setUploadModalVisible(true)}>
-                    Upload
-                  </Button>
-                </SpaceBetween>
-              }
-            >
-              Documents
-            </Header>
-          }
-          filter={
-            <TextFilter
-              filteringText={filterText}
-              filteringPlaceholder="Find documents"
-              filteringAriaLabel="Filter documents"
-              onChange={({ detail }) => setFilterText(detail.filteringText)}
-            />
-          }
-          pagination={
-            <Pagination
-              currentPageIndex={currentPageIndex}
-              onChange={({ detail }) => setCurrentPageIndex(detail.currentPageIndex)}
-              pagesCount={Math.max(1, Math.ceil(filteredDocuments.length / pageSize))}
-              ariaLabels={{
-                nextPageLabel: 'Next page',
-                previousPageLabel: 'Previous page',
-                pageLabel: pageNumber => `Page ${pageNumber} of all pages`
-              }}
-            />
-          }
-          empty={
-            <Box textAlign="center" color="inherit">
-              <b>No documents</b>
-              <Box padding={{ bottom: "s" }} variant="p" color="inherit">
-                No documents to display.
-              </Box>
-              <Button onClick={() => setUploadModalVisible(true)}>Upload first document</Button>
-            </Box>
-          }
+    <AppLayout
+      breadcrumbs={[{ text: 'Home', href: '/' }, { text: 'Documents', href: '/documents' }]}
+      contentType="table"
+      notifications={
+        <Flashbar
+          items={notifications.map(notification => ({
+            type: notification.type,
+            content: notification.content,
+            dismissible: notification.dismissible,
+            onDismiss: () => dismissNotification(notification.id),
+            id: notification.id
+          }))}
         />
+      }
+    >
+      <SpaceBetween size="l">
+        {viewType === 'table' ? (
+          <Table
+            loading={loading}
+            loadingText="Loading documents"
+            columnDefinitions={columnDefinitions}
+            items={paginatedDocuments}
+            selectionType="multi"
+            selectedItems={selectedItems}
+            onSelectionChange={({ detail }) => setSelectedItems(detail.selectedItems)}
+            header={
+              <Header
+                counter={`(${filteredDocuments.length})`}
+                actions={
+                  <SpaceBetween direction="horizontal" size="xs">
+                    <Button 
+                      disabled={selectedItems.length === 0} 
+                      onClick={() => setDeleteModalVisible(true)}
+                    >
+                      Delete
+                    </Button>
+                    <Button variant="primary" onClick={() => setUploadModalVisible(true)}>
+                      Upload
+                    </Button>
+                  </SpaceBetween>
+                }
+              >
+                Documents
+              </Header>
+            }
+            filter={
+              <TextFilter
+                filteringText={filterText}
+                filteringPlaceholder="Find documents"
+                filteringAriaLabel="Filter documents"
+                onChange={({ detail }) => setFilterText(detail.filteringText)}
+              />
+            }
+            pagination={
+              <Pagination
+                currentPageIndex={currentPageIndex}
+                onChange={({ detail }) => setCurrentPageIndex(detail.currentPageIndex)}
+                pagesCount={Math.max(1, Math.ceil(filteredDocuments.length / preferences.pageSize))}
+                ariaLabels={{
+                  nextPageLabel: 'Next page',
+                  previousPageLabel: 'Previous page',
+                  pageLabel: pageNumber => `Page ${pageNumber} of all pages`
+                }}
+              />
+            }
+            preferences={
+              <CollectionPreferences
+                title="Preferences"
+                confirmLabel="Confirm"
+                cancelLabel="Cancel"
+                preferences={preferences}
+                onConfirm={({ detail }) => setPreferences(detail)}
+                pageSizePreference={{
+                  title: "Page size",
+                  options: [
+                    { value: 10, label: "10 documents" },
+                    { value: 20, label: "20 documents" },
+                    { value: 50, label: "50 documents" }
+                  ]
+                }}
+                visibleContentPreference={{
+                  title: "Select visible columns",
+                  options: [
+                    {
+                      label: "Document properties",
+                      options: [
+                        { id: "name", label: "Name" },
+                        { id: "lastModified", label: "Last modified" },
+                        { id: "size", label: "Size" },
+                        { id: "actions", label: "Actions" }
+                      ]
+                    }
+                  ]
+                }}
+                wrapLinesPreference={{
+                  label: "Wrap lines",
+                  description: "Check to see all the text and wrap the lines"
+                }}
+                stripedRowsPreference={{
+                  label: "Striped rows",
+                  description: "Check to add alternating shaded rows"
+                }}
+              />
+            }
+            empty={
+              <Box textAlign="center" color="inherit">
+                <b>No documents</b>
+                <Box padding={{ bottom: "s" }} variant="p" color="inherit">
+                  No documents to display.
+                </Box>
+                <Button onClick={() => setUploadModalVisible(true)}>Upload first document</Button>
+              </Box>
+            }
+            stripedRows={preferences.stripedRows}
+            wrapLines={preferences.wrapLines}
+            visibleColumns={preferences.visibleContent}
+          />
+        ) : (
+          <Cards
+            loading={loading}
+            loadingText="Loading documents"
+            items={paginatedDocuments}
+            selectionType="multi"
+            selectedItems={selectedItems}
+            onSelectionChange={({ detail }) => setSelectedItems(detail.selectedItems)}
+            cardDefinition={{
+              header: item => (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '24px' }}>{getFileIcon(item.type)}</span>
+                  <span>{item.name}</span>
+                </div>
+              ),
+              sections: [
+                {
+                  id: "lastModified",
+                  header: "Last Modified",
+                  content: item => item.lastModified.toLocaleString()
+                },
+                {
+                  id: "size",
+                  header: "Size",
+                  content: item => filesize(item.size)
+                },
+                {
+                  id: "actions",
+                  header: "Actions",
+                  content: item => (
+                    <Button onClick={() => handleDownload(item)}>Download</Button>
+                  )
+                }
+              ]
+            }}
+            header={
+              <Header
+                counter={`(${filteredDocuments.length})`}
+                actions={
+                  <SpaceBetween direction="horizontal" size="xs">
+                    <Button 
+                      disabled={selectedItems.length === 0} 
+                      onClick={() => setDeleteModalVisible(true)}
+                    >
+                      Delete
+                    </Button>
+                    <Button variant="primary" onClick={() => setUploadModalVisible(true)}>
+                      Upload
+                    </Button>
+                  </SpaceBetween>
+                }
+              >
+                Documents
+              </Header>
+            }
+            filter={
+              <TextFilter
+                filteringText={filterText}
+                filteringPlaceholder="Find documents"
+                filteringAriaLabel="Filter documents"
+                onChange={({ detail }) => setFilterText(detail.filteringText)}
+              />
+            }
+            pagination={
+              <Pagination
+                currentPageIndex={currentPageIndex}
+                onChange={({ detail }) => setCurrentPageIndex(detail.currentPageIndex)}
+                pagesCount={Math.max(1, Math.ceil(filteredDocuments.length / preferences.pageSize))}
+                ariaLabels={{
+                  nextPageLabel: 'Next page',
+                  previousPageLabel: 'Previous page',
+                  pageLabel: pageNumber => `Page ${pageNumber} of all pages`
+                }}
+              />
+            }
+            preferences={
+              <CollectionPreferences
+                title="Preferences"
+                confirmLabel="Confirm"
+                cancelLabel="Cancel"
+                preferences={preferences}
+                onConfirm={({ detail }) => setPreferences(detail)}
+                pageSizePreference={{
+                  title: "Page size",
+                  options: [
+                    { value: 10, label: "10 documents" },
+                    { value: 20, label: "20 documents" },
+                    { value: 50, label: "50 documents" }
+                  ]
+                }}
+                visibleContentPreference={{
+                  title: "Select visible sections",
+                  options: [
+                    {
+                      label: "Document properties",
+                      options: [
+                        { id: "lastModified", label: "Last modified" },
+                        { id: "size", label: "Size" },
+                        { id: "actions", label: "Actions" }
+                      ]
+                    }
+                  ]
+                }}
+              />
+            }
+            empty={
+              <Box textAlign="center" color="inherit">
+                <b>No documents</b>
+                <Box padding={{ bottom: "s" }} variant="p" color="inherit">
+                  No documents to display.
+                </Box>
+                <Button onClick={() => setUploadModalVisible(true)}>Upload first document</Button>
+              </Box>
+            }
+          />
+        )}
+        
+        <Box float="right">
+          <SpaceBetween direction="horizontal" size="xs">
+            <Button 
+              onClick={() => setViewType(viewType === 'table' ? 'cards' : 'table')}
+              iconName={viewType === 'table' ? 'view-cards' : 'table'}
+            >
+              {viewType === 'table' ? 'Card view' : 'Table view'}
+            </Button>
+          </SpaceBetween>
+        </Box>
       </SpaceBetween>
 
       {/* Upload Modal */}
       <Modal
         visible={uploadModalVisible}
         onDismiss={() => setUploadModalVisible(false)}
-        header={<Header variant="h2">Upload Document</Header>}
-        footer={
-          <Box float="right">
-            <SpaceBetween direction="horizontal" size="xs">
-              <Button variant="link" onClick={() => setUploadModalVisible(false)}>Cancel</Button>
-              <Button variant="primary" onClick={handleUpload} loading={isUploading}>Upload</Button>
-            </SpaceBetween>
-          </Box>
-        }
+        header={<Header variant="h2">Upload Documents</Header>}
+        size="large"
       >
-        <SpaceBetween size="l">
-          {uploadError && <Alert type="error">{uploadError}</Alert>}
-          
-          <FormField label="Select file">
-            <Input
-              type="file"
-              onChange={handleFileChange}
-              disabled={isUploading}
-            />
-          </FormField>
-          
-          {isUploading && (
-            <FormField label="Upload progress">
-              <ProgressBar 
-                value={uploadProgress} 
-                label={`${Math.round(uploadProgress)}%`}
-                description="Uploading file..."
-              />
-            </FormField>
-          )}
-        </SpaceBetween>
+        <FileUploader 
+          onUploadComplete={() => {
+            setUploadModalVisible(false);
+            fetchDocuments();
+            addNotification({
+              type: 'success',
+              content: 'Files uploaded successfully',
+              dismissible: true
+            });
+          }} 
+        />
       </Modal>
 
       {/* Delete Confirmation Modal */}
