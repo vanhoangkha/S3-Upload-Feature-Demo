@@ -1,0 +1,127 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: API and Lambda functions for FCJ DMS
+
+Parameters:
+  DocsTableName:
+    Type: String
+  GeneralTableName:
+    Type: String
+  DocumentStoreBucketName:
+    Type: String
+
+Resources:
+  DocsList:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../lambda/list_docs/
+      Handler: list_docs.lambda_handler
+      Runtime: python3.9
+      FunctionName: list_docs
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref DocsTableName
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref DocsTableName
+      Events:
+        ListDocs:
+          Type: Api
+          Properties:
+            Path: /docs/{id}
+            Method: get
+
+  DocsUpload:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../lambda/upload_doc/
+      Handler: upload_doc.lambda_handler
+      Runtime: python3.9
+      FunctionName: upload_doc
+      Policies:
+        - DynamoDBWritePolicy:
+            TableName: !Ref DocsTableName
+        - S3CrudPolicy:
+            BucketName: !Ref DocumentStoreBucketName
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref DocsTableName
+          BUCKET_NAME: !Ref DocumentStoreBucketName
+      Events:
+        UploadDocs:
+          Type: Api
+          Properties:
+            Path: /docs
+            Method: post
+
+  DocsDelete:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../lambda/delete_doc/
+      Handler: delete_doc.lambda_handler
+      Runtime: python3.9
+      FunctionName: delete_doc
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DocsTableName
+        - S3CrudPolicy:
+            BucketName: !Ref DocumentStoreBucketName
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref DocsTableName
+          BUCKET_NAME: !Ref DocumentStoreBucketName
+      Events:
+        DeleteDoc:
+          Type: Api
+          Properties:
+            Path: /docs/{id}
+            Method: delete
+
+  GeneralInforUpload:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../lambda/upload_general_infor/
+      Handler: upload_general_infor.lambda_handler
+      Runtime: python3.9
+      FunctionName: upload_general_infor
+      Policies:
+        - DynamoDBWritePolicy:
+            TableName: !Ref GeneralTableName
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref GeneralTableName
+      Events:
+        UploadGeneral:
+          Type: Api
+          Properties:
+            Path: /docs/{id}/gen
+            Method: post
+
+  GeneralInforGet:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../lambda/get_general_infor/
+      Handler: get_general_infor.lambda_handler
+      Runtime: python3.9
+      FunctionName: get_general_infor
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref GeneralTableName
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref GeneralTableName
+      Events:
+        GetGeneral:
+          Type: Api
+          Properties:
+            Path: /docs/{id}/gen
+            Method: get
+
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: dev
+
+Outputs:
+  ApiUrl:
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/dev" 

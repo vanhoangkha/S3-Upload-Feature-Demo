@@ -1,0 +1,15 @@
+{
+  "dev": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-fcjserverlessdms-dev-5de16-authRole",
+      "UnauthRoleArn": "arn:aws:iam::590183822512:role/amplify-fcjserverlessdms-dev-5de16-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::590183822512:role/amplify-fcjserverlessdms-dev-5de16-authRole",
+      "Region": "us-east-1",
+      "DeploymentBucketName": "amplify-fcjserverlessdms-dev-5de16-deployment",
+      "UnauthRoleName": "amplify-fcjserverlessdms-dev-5de16-unauthRole",
+      "StackName": "amplify-fcjserverlessdms-dev-5de16",
+      "StackId": "arn:aws:cloudformation:us-east-1:590183822512:stack/amplify-fcjserverlessdms-dev-5de16/c7478ac0-428a-11f0-a685-0e7cb26ba367",
+      "AmplifyAppId": "d3gk57lhevbrz2"
+    }
+  }
+}

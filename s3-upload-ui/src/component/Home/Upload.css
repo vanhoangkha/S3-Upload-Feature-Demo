@@ -1,0 +1,17 @@
+.upload-body {
+  text-align: left;
+  height: 98vh;
+  /* margin-top: 20px; */
+}
+
+.upload {
+  text-align: right;
+  padding: 10px 10px 0px 10px;
+}
+
+.progress-item {
+  padding: 0px 0px 0px 20px;
+  background: #c7f5ff !important;
+  font-family: "Inter" !important;
+  font-weight: 400 !important;
+}

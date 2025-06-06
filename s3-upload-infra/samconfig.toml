@@ -1,0 +1,10 @@
+version = 0.1
+[default.deploy.parameters]
+stack_name = "vib-dms-app-2026"
+resolve_s3 = true
+s3_prefix = "vib-dms-app-2026"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "DocumentStoreBucketName=\"vibdmsstore2026\" WebStoreBucketName=\"vibdmswebstore2026\""
+image_repositories = []
