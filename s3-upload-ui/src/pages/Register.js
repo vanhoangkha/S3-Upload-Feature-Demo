@@ -1,147 +1,225 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { Auth } from 'aws-amplify';
 import {
   Container,
   Header,
   SpaceBetween,
-  Form,
   FormField,
   Input,
   Button,
   Box,
-  Alert
+  Alert,
+  Grid
 } from '@cloudscape-design/components';
-import { Auth } from 'aws-amplify';
 
 const Register = () => {
   const navigate = useNavigate();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [email, setEmail] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [confirmationCode, setConfirmationCode] = useState('');
-  const [error, setError] = useState('');
+  const [formData, setFormData] = useState({
+    username: '',
+    password: '',
+    email: '',
+    confirmPassword: '',
+  });
   const [loading, setLoading] = useState(false);
-  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [error, setError] = useState('');
+  const [verificationSent, setVerificationSent] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
 
-  const handleRegister = async (event) => {
-    event.preventDefault();
-    setLoading(true);
-    setError('');
+  const handleChange = (field, value) => {
+    setFormData({ ...formData, [field]: value });
+  };
 
-    if (password !== confirmPassword) {
+  const validateForm = () => {
+    if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
-      setLoading(false);
-      return;
+      return false;
     }
+    
+    if (formData.password.length < 8) {
+      setError('Password must be at least 8 characters');
+      return false;
+    }
+    
+    return true;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    
+    if (!validateForm()) return;
+    
+    setLoading(true);
 
     try {
       await Auth.signUp({
-        username,
-        password,
+        username: formData.username,
+        password: formData.password,
         attributes: {
-          email
-        }
+          email: formData.email,
+        },
       });
-      setShowConfirmation(true);
-    } catch (error) {
-      console.error('Error signing up:', error);
-      setError(error.message || 'Failed to register. Please try again.');
+      
+      setVerificationSent(true);
+    } catch (err) {
+      console.error('Error signing up:', err);
+      setError(err.message || 'An error occurred during sign up');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleConfirmation = async (event) => {
-    event.preventDefault();
-    setLoading(true);
+  const handleVerification = async (e) => {
+    e.preventDefault();
     setError('');
+    setLoading(true);
 
     try {
-      await Auth.confirmSignUp(username, confirmationCode);
-      navigate('/login');
-    } catch (error) {
-      console.error('Error confirming sign up:', error);
-      setError(error.message || 'Failed to confirm registration. Please try again.');
+      await Auth.confirmSignUp(formData.username, verificationCode);
+      navigate('/login', { state: { message: 'Registration successful! Please sign in.' } });
+    } catch (err) {
+      console.error('Error confirming sign up:', err);
+      setError(err.message || 'An error occurred during verification');
     } finally {
       setLoading(false);
     }
-  };
-
-  const navigateToLogin = () => {
-    navigate('/login');
   };
 
   return (
-    <Box padding="l" textAlign="center">
-      <Container
-        header={<Header variant="h1">Create an Account</Header>}
-        footer={
-          <SpaceBetween direction="horizontal" size="xs">
-            <Button onClick={navigateToLogin} variant="link">Already have an account? Sign in</Button>
-          </SpaceBetween>
-        }
-      >
-        {!showConfirmation ? (
-          <Form
-            actions={
-              <SpaceBetween direction="horizontal" size="xs">
-                <Button variant="primary" onClick={handleRegister} loading={loading}>Register</Button>
+    <Box padding="l" style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Grid gridDefinition={[{ colspan: { default: 12, s: 8, m: 6, l: 4 } }]}>
+        <Container
+          header={
+            <Header variant="h1" description={verificationSent ? "Verify your account" : "Create a new account"}>
+              S3 Upload Demo
+            </Header>
+          }
+        >
+          {!verificationSent ? (
+            <form onSubmit={handleSubmit}>
+              <SpaceBetween size="l">
+                {error && <Alert type="error">{error}</Alert>}
+
+                <FormField label="Username" controlId="username">
+                  <Input
+                    type="text"
+                    id="username"
+                    value={formData.username}
+                    onChange={({ detail }) => handleChange('username', detail.value)}
+                    autoComplete="username"
+                    placeholder="Choose a username"
+                    required
+                  />
+                </FormField>
+
+                <FormField label="Email" controlId="email">
+                  <Input
+                    type="email"
+                    id="email"
+                    value={formData.email}
+                    onChange={({ detail }) => handleChange('email', detail.value)}
+                    autoComplete="email"
+                    placeholder="Enter your email"
+                    required
+                  />
+                </FormField>
+
+                <FormField label="Password" controlId="password">
+                  <Input
+                    type="password"
+                    id="password"
+                    value={formData.password}
+                    onChange={({ detail }) => handleChange('password', detail.value)}
+                    autoComplete="new-password"
+                    placeholder="Create a password"
+                    required
+                  />
+                </FormField>
+
+                <FormField label="Confirm Password" controlId="confirmPassword">
+                  <Input
+                    type="password"
+                    id="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={({ detail }) => handleChange('confirmPassword', detail.value)}
+                    autoComplete="new-password"
+                    placeholder="Confirm your password"
+                    required
+                  />
+                </FormField>
+
+                <Button
+                  variant="primary"
+                  formAction="submit"
+                  loading={loading}
+                  fullWidth
+                >
+                  Sign up
+                </Button>
+
+                <Box textAlign="center">
+                  Already have an account?{' '}
+                  <Link to="/login" style={{ textDecoration: 'none' }}>
+                    Sign in
+                  </Link>
+                </Box>
               </SpaceBetween>
-            }
-          >
-            {error && <Alert type="error">{error}</Alert>}
-            <FormField label="Username" controlId="username">
-              <Input
-                type="text"
-                value={username}
-                onChange={({ detail }) => setUsername(detail.value)}
-              />
-            </FormField>
-            <FormField label="Email" controlId="email">
-              <Input
-                type="email"
-                value={email}
-                onChange={({ detail }) => setEmail(detail.value)}
-              />
-            </FormField>
-            <FormField label="Password" controlId="password">
-              <Input
-                type="password"
-                value={password}
-                onChange={({ detail }) => setPassword(detail.value)}
-              />
-            </FormField>
-            <FormField label="Confirm Password" controlId="confirmPassword">
-              <Input
-                type="password"
-                value={confirmPassword}
-                onChange={({ detail }) => setConfirmPassword(detail.value)}
-              />
-            </FormField>
-          </Form>
-        ) : (
-          <Form
-            actions={
-              <SpaceBetween direction="horizontal" size="xs">
-                <Button variant="primary" onClick={handleConfirmation} loading={loading}>Confirm</Button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerification}>
+              <SpaceBetween size="l">
+                {error && <Alert type="error">{error}</Alert>}
+                
+                <Alert type="info">
+                  A verification code has been sent to your email address. Please enter the code below to verify your account.
+                </Alert>
+
+                <FormField label="Verification Code" controlId="verificationCode">
+                  <Input
+                    type="text"
+                    id="verificationCode"
+                    value={verificationCode}
+                    onChange={({ detail }) => setVerificationCode(detail.value)}
+                    placeholder="Enter verification code"
+                    required
+                  />
+                </FormField>
+
+                <Button
+                  variant="primary"
+                  formAction="submit"
+                  loading={loading}
+                  fullWidth
+                >
+                  Verify
+                </Button>
+
+                <Box textAlign="center">
+                  <Button
+                    variant="link"
+                    onClick={async () => {
+                      try {
+                        setLoading(true);
+                        await Auth.resendSignUp(formData.username);
+                        setError('');
+                        setLoading(false);
+                        alert('Verification code resent successfully');
+                      } catch (err) {
+                        setError(err.message || 'Failed to resend code');
+                        setLoading(false);
+                      }
+                    }}
+                    disabled={loading}
+                  >
+                    Resend code
+                  </Button>
+                </Box>
               </SpaceBetween>
-            }
-          >
-            {error && <Alert type="error">{error}</Alert>}
-            <Alert type="info">
-              A confirmation code has been sent to your email. Please enter the code below to complete registration.
-            </Alert>
-            <FormField label="Confirmation Code" controlId="confirmationCode">
-              <Input
-                type="text"
-                value={confirmationCode}
-                onChange={({ detail }) => setConfirmationCode(detail.value)}
-              />
-            </FormField>
-          </Form>
-        )}
-      </Container>
+            </form>
+          )}
+        </Container>
+      </Grid>
     </Box>
   );
 };

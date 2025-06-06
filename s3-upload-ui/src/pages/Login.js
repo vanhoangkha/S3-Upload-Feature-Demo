@@ -1,84 +1,104 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { Auth } from 'aws-amplify';
 import {
   Container,
   Header,
   SpaceBetween,
-  Form,
   FormField,
   Input,
   Button,
   Box,
-  Alert
+  Alert,
+  Grid
 } from '@cloudscape-design/components';
-import { Auth } from 'aws-amplify';
 
 const Login = () => {
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleLogin = async (event) => {
-    event.preventDefault();
-    setLoading(true);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setError('');
+    setLoading(true);
 
     try {
       await Auth.signIn(username, password);
       navigate('/');
-    } catch (error) {
-      console.error('Error signing in:', error);
-      setError(error.message || 'Failed to sign in. Please check your credentials.');
+    } catch (err) {
+      console.error('Error signing in:', err);
+      setError(err.message || 'An error occurred during sign in');
     } finally {
       setLoading(false);
     }
   };
 
-  const navigateToRegister = () => {
-    navigate('/register');
-  };
-
-  const navigateToForgotPassword = () => {
-    navigate('/forgot-password');
-  };
-
   return (
-    <Box padding="l" textAlign="center">
-      <Container
-        header={<Header variant="h1">S3 Upload Feature Demo</Header>}
-        footer={
-          <SpaceBetween direction="horizontal" size="xs">
-            <Button onClick={navigateToRegister}>Create account</Button>
-            <Button onClick={navigateToForgotPassword} variant="link">Forgot password?</Button>
-          </SpaceBetween>
-        }
-      >
-        <Form
-          actions={
-            <SpaceBetween direction="horizontal" size="xs">
-              <Button variant="primary" onClick={handleLogin} loading={loading}>Sign in</Button>
-            </SpaceBetween>
+    <Box padding="l" style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Grid gridDefinition={[{ colspan: { default: 12, s: 8, m: 6, l: 4 } }]}>
+        <Container
+          header={
+            <Header variant="h1" description="Sign in to your account">
+              S3 Upload Demo
+            </Header>
           }
         >
-          {error && <Alert type="error">{error}</Alert>}
-          <FormField label="Username" controlId="username">
-            <Input
-              type="text"
-              value={username}
-              onChange={({ detail }) => setUsername(detail.value)}
-            />
-          </FormField>
-          <FormField label="Password" controlId="password">
-            <Input
-              type="password"
-              value={password}
-              onChange={({ detail }) => setPassword(detail.value)}
-            />
-          </FormField>
-        </Form>
-      </Container>
+          <form onSubmit={handleSubmit}>
+            <SpaceBetween size="l">
+              {error && <Alert type="error">{error}</Alert>}
+
+              <FormField label="Username" controlId="username">
+                <Input
+                  type="text"
+                  id="username"
+                  value={username}
+                  onChange={({ detail }) => setUsername(detail.value)}
+                  autoComplete="username"
+                  placeholder="Enter your username"
+                  required
+                />
+              </FormField>
+
+              <FormField label="Password" controlId="password">
+                <Input
+                  type="password"
+                  id="password"
+                  value={password}
+                  onChange={({ detail }) => setPassword(detail.value)}
+                  autoComplete="current-password"
+                  placeholder="Enter your password"
+                  required
+                />
+              </FormField>
+
+              <Box textAlign="right">
+                <Link to="/forgot-password" style={{ textDecoration: 'none' }}>
+                  Forgot password?
+                </Link>
+              </Box>
+
+              <Button
+                variant="primary"
+                formAction="submit"
+                loading={loading}
+                fullWidth
+              >
+                Sign in
+              </Button>
+
+              <Box textAlign="center">
+                Don't have an account?{' '}
+                <Link to="/register" style={{ textDecoration: 'none' }}>
+                  Sign up
+                </Link>
+              </Box>
+            </SpaceBetween>
+          </form>
+        </Container>
+      </Grid>
     </Box>
   );
 };

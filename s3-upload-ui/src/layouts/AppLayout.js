@@ -1,28 +1,27 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuthenticator } from '@aws-amplify/ui-react';
 import {
-  AppLayout,
+  AppLayout as CloudscapeAppLayout,
   SideNavigation,
-  Container,
-  Header,
   Button,
+  TopNavigation,
   SpaceBetween,
-  BreadcrumbGroup
+  Modal,
+  Box,
+  Header
 } from '@cloudscape-design/components';
-import '@cloudscape-design/global-styles/index.css';
-import { Auth } from 'aws-amplify';
 
-const AppLayoutComponent = ({ children, breadcrumbs = [] }) => {
+const AppLayout = ({ children, breadcrumbs, contentType, notifications }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeHref, setActiveHref] = useState(location.pathname);
+  const { user, signOut } = useAuthenticator((context) => [context.user]);
+  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
 
-  const handleSignOut = async () => {
-    try {
-      await Auth.signOut();
-      navigate('/login');
-    } catch (error) {
-      console.error('Error signing out: ', error);
+  const handleNavigate = (event) => {
+    if (event.detail.href) {
+      event.preventDefault();
+      navigate(event.detail.href);
     }
   };
 
@@ -30,59 +29,74 @@ const AppLayoutComponent = ({ children, breadcrumbs = [] }) => {
     { type: 'link', text: 'Home', href: '/' },
     { type: 'link', text: 'Documents', href: '/documents' },
     { type: 'link', text: 'Profile', href: '/profile' },
+    { type: 'divider' },
+    { type: 'link', text: 'Sign Out', href: '#', onClick: () => setLogoutModalVisible(true) }
   ];
 
+  const activeHref = location.pathname;
+
   return (
-    <AppLayout
-      navigation={
-        <SideNavigation
-          header={{ text: 'S3 Upload Demo', href: '/' }}
-          items={navigationItems}
-          activeHref={activeHref}
-          onFollow={event => {
-            if (!event.detail.external) {
-              event.preventDefault();
-              setActiveHref(event.detail.href);
-              navigate(event.detail.href);
+    <>
+      <CloudscapeAppLayout
+        contentType={contentType || "default"}
+        navigation={
+          <SideNavigation
+            activeHref={activeHref}
+            header={{ text: 'S3 Upload Demo', href: '/' }}
+            items={navigationItems}
+            onFollow={handleNavigate}
+          />
+        }
+        breadcrumbs={breadcrumbs}
+        notifications={notifications}
+        toolsHide={true}
+        content={children}
+        headerSelector="#header"
+      />
+      
+      <div id="header" style={{ position: 'sticky', top: 0, zIndex: 1002 }}>
+        <TopNavigation
+          identity={{
+            href: '/',
+            title: 'S3 Upload Demo',
+            logo: {
+              src: 'https://d1.awsstatic.com/logos/aws-logo-lockups/poweredbyaws/PB_AWS_logo_RGB_stacked_REV_SQ.91cd4af40773cbfbd15577a3c2b8a346fe3e8fa2.png',
+              alt: 'AWS'
             }
           }}
-        />
-      }
-      breadcrumbs={
-        <BreadcrumbGroup
-          items={[
-            { text: 'S3 Upload Demo', href: '/' },
-            ...breadcrumbs
+          utilities={[
+            {
+              type: 'button',
+              text: user?.username || 'User',
+              iconName: 'user-profile',
+              onClick: () => navigate('/profile')
+            },
+            {
+              type: 'button',
+              text: 'Sign out',
+              onClick: () => setLogoutModalVisible(true)
+            }
           ]}
-          ariaLabel="Breadcrumbs"
-          onFollow={event => {
-            if (!event.detail.external) {
-              event.preventDefault();
-              navigate(event.detail.href);
-            }
-          }}
         />
-      }
-      content={
-        <Container>
-          {children}
-        </Container>
-      }
-      toolsHide={true}
-      contentHeader={
-        <Header
-          variant="h1"
-          actions={
+      </div>
+
+      <Modal
+        visible={logoutModalVisible}
+        onDismiss={() => setLogoutModalVisible(false)}
+        header={<Header variant="h2">Sign out</Header>}
+        footer={
+          <Box float="right">
             <SpaceBetween direction="horizontal" size="xs">
-              <Button variant="primary" onClick={handleSignOut}>Sign out</Button>
+              <Button variant="link" onClick={() => setLogoutModalVisible(false)}>Cancel</Button>
+              <Button variant="primary" onClick={() => signOut()}>Sign out</Button>
             </SpaceBetween>
-          }
-        >
-          S3 Upload Feature Demo
-        </Header>
-      }
-    />
+          </Box>
+        }
+      >
+        Are you sure you want to sign out?
+      </Modal>
+    </>
   );
 };
 
-export default AppLayoutComponent;
+export default AppLayout;

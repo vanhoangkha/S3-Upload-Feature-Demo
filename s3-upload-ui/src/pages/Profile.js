@@ -4,28 +4,36 @@ import {
   Container,
   Header,
   SpaceBetween,
-  Form,
   FormField,
   Input,
   Button,
+  Box,
   Alert,
   ColumnLayout,
-  Box,
-  ExpandableSection
+  Tabs,
+  Form,
+  PasswordField
 } from '@cloudscape-design/components';
 import AppLayout from '../layouts/AppLayout';
 
 const Profile = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [email, setEmail] = useState('');
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [activeTabId, setActiveTabId] = useState('profile');
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: ''
+  });
+  const [passwordData, setPasswordData] = useState({
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [updateLoading, setUpdateLoading] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   useEffect(() => {
     fetchUserData();
@@ -36,147 +44,278 @@ const Profile = () => {
     try {
       const userData = await Auth.currentAuthenticatedUser();
       setUser(userData);
-      setEmail(userData.attributes.email || '');
+      
+      // Extract user attributes
+      const attributes = userData.attributes || {};
+      setFormData({
+        name: attributes.name || '',
+        email: attributes.email || '',
+        phone: attributes.phone_number || ''
+      });
     } catch (error) {
       console.error('Error fetching user data:', error);
-      setError('Failed to load user profile. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleUpdateProfile = async (event) => {
-    event.preventDefault();
-    setIsUpdating(true);
+  const handleProfileChange = (field, value) => {
+    setFormData({ ...formData, [field]: value });
+  };
+
+  const handlePasswordChange = (field, value) => {
+    setPasswordData({ ...passwordData, [field]: value });
+  };
+
+  const updateProfile = async (e) => {
+    e.preventDefault();
     setError('');
     setSuccess('');
+    setUpdateLoading(true);
 
     try {
       const user = await Auth.currentAuthenticatedUser();
       
-      const result = await Auth.updateUserAttributes(user, {
-        email: email,
-      });
+      const attributes = {};
+      if (formData.name) attributes.name = formData.name;
+      if (formData.phone) attributes.phone_number = formData.phone;
       
-      setSuccess('Profile updated successfully. Please check your email for verification if you changed your email address.');
+      // Email requires verification, so we handle it separately
+      const emailChanged = user.attributes.email !== formData.email && formData.email;
+      
+      if (Object.keys(attributes).length > 0) {
+        await Auth.updateUserAttributes(user, attributes);
+      }
+      
+      if (emailChanged) {
+        await Auth.updateUserAttributes(user, {
+          email: formData.email
+        });
+        setSuccess('Profile updated successfully. A verification code has been sent to your new email address.');
+      } else if (Object.keys(attributes).length > 0) {
+        setSuccess('Profile updated successfully.');
+      } else {
+        setSuccess('No changes to update.');
+      }
+      
+      // Refresh user data
+      fetchUserData();
     } catch (error) {
       console.error('Error updating profile:', error);
-      setError(error.message || 'Failed to update profile. Please try again.');
+      setError(error.message || 'An error occurred while updating your profile');
     } finally {
-      setIsUpdating(false);
+      setUpdateLoading(false);
     }
   };
 
-  const handleChangePassword = async (event) => {
-    event.preventDefault();
-    setIsChangingPassword(true);
+  const changePassword = async (e) => {
+    e.preventDefault();
     setError('');
     setSuccess('');
-
-    if (newPassword !== confirmPassword) {
+    
+    // Validate passwords
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
       setError('New passwords do not match');
-      setIsChangingPassword(false);
       return;
     }
+    
+    if (passwordData.newPassword.length < 8) {
+      setError('New password must be at least 8 characters');
+      return;
+    }
+    
+    setPasswordLoading(true);
 
     try {
       const user = await Auth.currentAuthenticatedUser();
-      await Auth.changePassword(user, currentPassword, newPassword);
+      await Auth.changePassword(
+        user,
+        passwordData.oldPassword,
+        passwordData.newPassword
+      );
       
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
       setSuccess('Password changed successfully');
+      setPasswordData({
+        oldPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
     } catch (error) {
       console.error('Error changing password:', error);
-      setError(error.message || 'Failed to change password. Please try again.');
+      setError(error.message || 'An error occurred while changing your password');
     } finally {
-      setIsChangingPassword(false);
+      setPasswordLoading(false);
     }
   };
 
   return (
-    <AppLayout breadcrumbs={[{ text: 'Profile', href: '/profile' }]}>
+    <AppLayout
+      breadcrumbs={[{ text: 'Home', href: '/' }, { text: 'Profile', href: '/profile' }]}
+      contentType="default"
+    >
       <SpaceBetween size="l">
         <Container
-          header={<Header variant="h2">User Profile</Header>}
-          loading={loading}
+          header={
+            <Header variant="h2">
+              User Profile
+            </Header>
+          }
         >
-          {user && (
-            <ColumnLayout columns={2} variant="text-grid">
-              <div>
-                <Box variant="awsui-key-label">Username</Box>
-                <Box variant="awsui-value-large">{user.username}</Box>
-              </div>
-              <div>
-                <Box variant="awsui-key-label">Email</Box>
-                <Box variant="awsui-value-large">{user.attributes.email}</Box>
-              </div>
-              <div>
-                <Box variant="awsui-key-label">Account Created</Box>
-                <Box variant="awsui-value-large">
-                  {new Date(user.attributes.sub.split('-')[4] * 1000).toLocaleString()}
-                </Box>
-              </div>
-            </ColumnLayout>
-          )}
-        </Container>
-
-        <Container
-          header={<Header variant="h2">Update Profile</Header>}
-        >
-          <Form
-            actions={
-              <SpaceBetween direction="horizontal" size="xs">
-                <Button variant="primary" onClick={handleUpdateProfile} loading={isUpdating}>Save Changes</Button>
-              </SpaceBetween>
-            }
-          >
-            {error && <Alert type="error">{error}</Alert>}
-            {success && <Alert type="success">{success}</Alert>}
-            
-            <FormField label="Email" controlId="email">
-              <Input
-                type="email"
-                value={email}
-                onChange={({ detail }) => setEmail(detail.value)}
-              />
-            </FormField>
-          </Form>
-        </Container>
-
-        <Container>
-          <ExpandableSection headerText="Change Password">
-            <Form
-              actions={
-                <SpaceBetween direction="horizontal" size="xs">
-                  <Button variant="primary" onClick={handleChangePassword} loading={isChangingPassword}>Change Password</Button>
-                </SpaceBetween>
+          <Tabs
+            activeTabId={activeTabId}
+            onChange={({ detail }) => {
+              setActiveTabId(detail.activeTabId);
+              setError('');
+              setSuccess('');
+            }}
+            tabs={[
+              {
+                id: 'profile',
+                label: 'Profile Information',
+                content: (
+                  <Box padding="l">
+                    <Form
+                      actions={
+                        <SpaceBetween direction="horizontal" size="xs">
+                          <Button formAction="none" variant="link">
+                            Cancel
+                          </Button>
+                          <Button
+                            variant="primary"
+                            onClick={updateProfile}
+                            loading={updateLoading}
+                          >
+                            Save changes
+                          </Button>
+                        </SpaceBetween>
+                      }
+                      errorText={error}
+                      successText={success}
+                    >
+                      <SpaceBetween size="l">
+                        <Container header={<Header variant="h3">Personal Information</Header>}>
+                          <SpaceBetween size="l">
+                            <FormField label="Username">
+                              <Input
+                                value={user?.username || ''}
+                                disabled
+                              />
+                            </FormField>
+                            
+                            <FormField label="Full Name">
+                              <Input
+                                value={formData.name}
+                                onChange={({ detail }) => handleProfileChange('name', detail.value)}
+                              />
+                            </FormField>
+                            
+                            <FormField label="Email">
+                              <Input
+                                type="email"
+                                value={formData.email}
+                                onChange={({ detail }) => handleProfileChange('email', detail.value)}
+                              />
+                            </FormField>
+                            
+                            <FormField label="Phone Number">
+                              <Input
+                                type="tel"
+                                value={formData.phone}
+                                onChange={({ detail }) => handleProfileChange('phone', detail.value)}
+                              />
+                            </FormField>
+                          </SpaceBetween>
+                        </Container>
+                      </SpaceBetween>
+                    </Form>
+                  </Box>
+                )
+              },
+              {
+                id: 'security',
+                label: 'Security',
+                content: (
+                  <Box padding="l">
+                    <Form
+                      actions={
+                        <SpaceBetween direction="horizontal" size="xs">
+                          <Button
+                            formAction="none"
+                            variant="link"
+                            onClick={() => {
+                              setPasswordData({
+                                oldPassword: '',
+                                newPassword: '',
+                                confirmPassword: ''
+                              });
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            variant="primary"
+                            onClick={changePassword}
+                            loading={passwordLoading}
+                          >
+                            Change password
+                          </Button>
+                        </SpaceBetween>
+                      }
+                      errorText={error}
+                      successText={success}
+                    >
+                      <SpaceBetween size="l">
+                        <Container header={<Header variant="h3">Change Password</Header>}>
+                          <SpaceBetween size="l">
+                            <PasswordField
+                              label="Current password"
+                              value={passwordData.oldPassword}
+                              onChange={({ detail }) => handlePasswordChange('oldPassword', detail.value)}
+                            />
+                            
+                            <PasswordField
+                              label="New password"
+                              value={passwordData.newPassword}
+                              onChange={({ detail }) => handlePasswordChange('newPassword', detail.value)}
+                            />
+                            
+                            <PasswordField
+                              label="Confirm new password"
+                              value={passwordData.confirmPassword}
+                              onChange={({ detail }) => handlePasswordChange('confirmPassword', detail.value)}
+                            />
+                          </SpaceBetween>
+                        </Container>
+                      </SpaceBetween>
+                    </Form>
+                  </Box>
+                )
+              },
+              {
+                id: 'activity',
+                label: 'Account Activity',
+                content: (
+                  <Box padding="l">
+                    <Container header={<Header variant="h3">Recent Activity</Header>}>
+                      <ColumnLayout columns={1} variant="text-grid">
+                        <SpaceBetween size="l">
+                          <div>
+                            <Box variant="h4">Last Sign In</Box>
+                            <div>{new Date(user?.signInUserSession?.accessToken?.payload?.auth_time * 1000).toLocaleString() || 'N/A'}</div>
+                          </div>
+                          
+                          <div>
+                            <Box variant="h4">Account Created</Box>
+                            <div>{new Date(user?.attributes?.sub ? parseInt(user.attributes.sub.substring(0, 8), 16) * 1000 : 0).toLocaleString() || 'N/A'}</div>
+                          </div>
+                        </SpaceBetween>
+                      </ColumnLayout>
+                    </Container>
+                  </Box>
+                )
               }
-            >
-              <FormField label="Current Password" controlId="currentPassword">
-                <Input
-                  type="password"
-                  value={currentPassword}
-                  onChange={({ detail }) => setCurrentPassword(detail.value)}
-                />
-              </FormField>
-              <FormField label="New Password" controlId="newPassword">
-                <Input
-                  type="password"
-                  value={newPassword}
-                  onChange={({ detail }) => setNewPassword(detail.value)}
-                />
-              </FormField>
-              <FormField label="Confirm New Password" controlId="confirmPassword">
-                <Input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={({ detail }) => setConfirmPassword(detail.value)}
-                />
-              </FormField>
-            </Form>
-          </ExpandableSection>
+            ]}
+          />
         </Container>
       </SpaceBetween>
     </AppLayout>
