@@ -45,7 +45,10 @@ export class S3Service {
         s3Key += `${normalizedPath}/`;
       }
     }
-    s3Key += fileName;
+
+    // Handle duplicate files by checking for existing files and creating versions
+    const versionedFileName = await this.getVersionedFileName(s3Key, fileName);
+    s3Key += versionedFileName;
 
     // Determine if we should use multipart upload
     const useMultipart = fileSize && fileSize > this.MULTIPART_THRESHOLD;
@@ -271,5 +274,51 @@ export class S3Service {
       console.error('Error listing S3 objects:', error);
       return [];
     }
+  }
+
+  // Handle file versioning for duplicate filenames
+  private async getVersionedFileName(basePath: string, fileName: string): Promise<string> {
+    // Check if the original filename already exists
+    const originalKey = basePath + fileName;
+    const exists = await this.checkObjectExists(originalKey);
+
+    if (!exists) {
+      // File doesn't exist, use original name
+      return fileName;
+    }
+
+    // File exists, create a versioned name
+    const fileExtension = fileName.includes('.')
+      ? fileName.substring(fileName.lastIndexOf('.'))
+      : '';
+    const baseName = fileName.includes('.')
+      ? fileName.substring(0, fileName.lastIndexOf('.'))
+      : fileName;
+
+    // Find the next available version number
+    let version = 1;
+    let versionedFileName: string;
+
+    do {
+      version++;
+      versionedFileName = `${baseName} (${version})${fileExtension}`;
+      const versionedKey = basePath + versionedFileName;
+      const versionExists = await this.checkObjectExists(versionedKey);
+
+      if (!versionExists) {
+        break;
+      }
+
+      // Safety check to prevent infinite loop
+      if (version > 1000) {
+        // Use timestamp as fallback
+        const timestamp = Date.now();
+        versionedFileName = `${baseName}_${timestamp}${fileExtension}`;
+        break;
+      }
+    } while (true);
+
+    console.log(`File versioning: "${fileName}" -> "${versionedFileName}"`);
+    return versionedFileName;
   }
 }

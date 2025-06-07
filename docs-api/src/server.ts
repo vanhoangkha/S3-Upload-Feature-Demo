@@ -25,7 +25,6 @@ serve({
   console.log('  - POST /api/documents/presigned-url');
   console.log('  - POST /api/documents');
   console.log('  - GET  /api/documents/:user_id/:file');
-  console.log('  - PUT  /api/documents/:user_id/:file');
   console.log('  - GET  /api/documents/:user_id/:file/download');
   console.log('  - DELETE /api/documents/:user_id/:file');
 });

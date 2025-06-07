@@ -139,6 +139,25 @@ export const getFolderStructure = (documents: any[], currentFolderPath: string =
   };
 };
 
+export const isFilePath = (path: string): boolean => {
+  if (!path) return false;
+
+  // Check if the path ends with a file extension
+  const fileName = path.split('/').pop() || '';
+  const hasExtension = /\.[a-zA-Z0-9]+$/.test(fileName);
+
+  return hasExtension;
+};
+
+export const getFileNameFromPath = (path: string): string => {
+  return path.split('/').pop() || '';
+};
+
+export const getFolderPathFromFilePath = (filePath: string): string => {
+  const parts = filePath.split('/');
+  return parts.slice(0, -1).join('/');
+};
+
 export const getBreadcrumbs = (currentPath: string): Array<{ name: string, path: string }> => {
   if (!currentPath) return [{ name: '🏠 My Documents', path: '' }];
 

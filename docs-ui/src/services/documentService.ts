@@ -6,7 +6,6 @@ import {
   PresignedUrlResponse,
   ApiResponse,
   MultipartUploadPart,
-  UpdateDocumentRequest,
   S3FolderListResponse
 } from '../types';
 
@@ -161,7 +160,9 @@ export class DocumentService {
 
   // Get specific document
   static async getDocument(userId: string, fileName: string): Promise<Document> {
-    const response = await api.get<ApiResponse<Document>>(`/documents/${userId}/${fileName}`);
+    // URL encode the fileName to handle S3 keys with forward slashes
+    const encodedFileName = encodeURIComponent(fileName);
+    const response = await api.get<ApiResponse<Document>>(`/documents/${userId}/${encodedFileName}`);
 
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to fetch document');
@@ -170,20 +171,13 @@ export class DocumentService {
     return response.data.data;
   }
 
-  // Update document
-  static async updateDocument(userId: string, fileName: string, updates: UpdateDocumentRequest): Promise<Document> {
-    const response = await api.put<ApiResponse<Document>>(`/documents/${userId}/${fileName}`, updates);
-
-    if (!response.data.success || !response.data.data) {
-      throw new Error(response.data.error || 'Failed to update document');
-    }
-
-    return response.data.data;
-  }
+  // Document update functionality has been removed - edit functionality is no longer supported
 
   // Get download URL
   static async getDownloadUrl(userId: string, fileName: string): Promise<string> {
-    const response = await api.get<ApiResponse<{ downloadUrl: string }>>(`/documents/${userId}/${fileName}/download`);
+    // URL encode the fileName to handle S3 keys with forward slashes
+    const encodedFileName = encodeURIComponent(fileName);
+    const response = await api.get<ApiResponse<{ downloadUrl: string }>>(`/documents/${userId}/${encodedFileName}/download`);
 
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to get download URL');
@@ -194,7 +188,9 @@ export class DocumentService {
 
   // Delete document
   static async deleteDocument(userId: string, fileName: string): Promise<void> {
-    const response = await api.delete<ApiResponse<void>>(`/documents/${userId}/${fileName}`);
+    // URL encode the fileName to handle S3 keys with forward slashes
+    const encodedFileName = encodeURIComponent(fileName);
+    const response = await api.delete<ApiResponse<void>>(`/documents/${userId}/${encodedFileName}`);
 
     if (!response.data.success) {
       throw new Error(response.data.error || 'Failed to delete document');

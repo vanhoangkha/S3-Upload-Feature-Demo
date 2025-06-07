@@ -1,14 +1,17 @@
-import { PutCommand, GetCommand, UpdateCommand, DeleteCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, GetCommand, DeleteCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { docClient, config } from '../utils/aws-config';
-import { Document, CreateDocumentRequest, UpdateDocumentRequest } from '../types';
+import { Document, CreateDocumentRequest } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 export class DocumentService {
   async createDocument(data: CreateDocumentRequest & { s3Key: string; uploadedBy: string }): Promise<Document> {
     const now = new Date().toISOString();
+
+    // Use the S3 key as the unique identifier to handle files with same names in different folders
+    // This ensures that files with the same name in different folders get separate DynamoDB records
     const document: Document = {
       user_id: data.user_id,
-      file: data.fileName,
+      file: data.s3Key, // Use S3 key instead of just fileName to ensure uniqueness across folders
       id: uuidv4(),
       title: data.title,
       description: data.description,
@@ -59,43 +62,7 @@ export class DocumentService {
     };
   }
 
-  async updateDocument(user_id: string, file: string, data: UpdateDocumentRequest): Promise<Document | null> {
-    const updateExpression: string[] = [];
-    const expressionAttributeValues: Record<string, any> = {};
-    const expressionAttributeNames: Record<string, string> = {};
-
-    if (data.title) {
-      updateExpression.push('#title = :title');
-      expressionAttributeNames['#title'] = 'title';
-      expressionAttributeValues[':title'] = data.title;
-    }
-
-    if (data.description !== undefined) {
-      updateExpression.push('#description = :description');
-      expressionAttributeNames['#description'] = 'description';
-      expressionAttributeValues[':description'] = data.description;
-    }
-
-    updateExpression.push('#updatedAt = :updatedAt');
-    expressionAttributeNames['#updatedAt'] = 'updatedAt';
-    expressionAttributeValues[':updatedAt'] = new Date().toISOString();
-
-    if (updateExpression.length === 1) { // Only updatedAt
-      throw new Error('No fields to update');
-    }
-
-    const command = new UpdateCommand({
-      TableName: config.documentsTableName,
-      Key: { user_id, file },
-      UpdateExpression: `SET ${updateExpression.join(', ')}`,
-      ExpressionAttributeNames: expressionAttributeNames,
-      ExpressionAttributeValues: expressionAttributeValues,
-      ReturnValues: 'ALL_NEW',
-    });
-
-    const result = await docClient.send(command);
-    return result.Attributes as Document || null;
-  }
+  // Document update functionality removed - edit functionality is no longer supported
 
   async deleteDocument(user_id: string, file: string): Promise<boolean> {
     const command = new DeleteCommand({

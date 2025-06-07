@@ -22,10 +22,7 @@ export interface CreateDocumentRequest {
   user_id: string;
 }
 
-export interface UpdateDocumentRequest {
-  title?: string;
-  description?: string;
-}
+// Document update functionality removed - edit functionality is no longer supported
 
 export interface PresignedUrlResponse {
   uploadUrl: string;

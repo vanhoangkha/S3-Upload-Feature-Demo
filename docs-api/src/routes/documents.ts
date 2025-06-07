@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { DocumentService } from '../services/document-service';
 import { S3Service } from '../services/s3-service';
-import { CreateDocumentRequest, UpdateDocumentRequest, ApiResponse } from '../types';
+import { CreateDocumentRequest, ApiResponse } from '../types';
 import { S3FolderItem, S3FolderListResponse } from '../types/folder';
 
 const documents = new Hono();
@@ -152,11 +152,14 @@ documents.get('/folders/:user_id', async (c) => {
       const keyAfterPrefix = obj.key.substring(prefix.length);
       if (!keyAfterPrefix) return;
 
-      const pathParts = keyAfterPrefix.split('/');
+      console.log(`Processing object: ${obj.key}, keyAfterPrefix: ${keyAfterPrefix}`);
+
+      const pathParts = keyAfterPrefix.split('/').filter((part: string) => part !== ''); // Remove empty parts
 
       if (pathParts.length === 1) {
         // This is a file directly in the current folder
         if (!pathParts[0].startsWith('.folder_')) {
+          console.log(`Adding file: ${pathParts[0]}`);
           files.push({
             name: pathParts[0],
             type: 'file',
@@ -164,10 +167,14 @@ documents.get('/folders/:user_id', async (c) => {
             lastModified: obj.lastModified,
             s3Key: obj.key
           });
+        } else {
+          console.log(`Skipping folder metadata file: ${pathParts[0]}`);
         }
       } else if (pathParts.length > 1) {
-        // This indicates a subfolder
-        folders.add(pathParts[0]);
+        // This indicates a subfolder - only add the first level folder
+        const topLevelFolder = pathParts[0];
+        console.log(`Adding folder: ${topLevelFolder} (from path: ${keyAfterPrefix})`);
+        folders.add(topLevelFolder);
       }
     });
 
@@ -200,7 +207,11 @@ documents.get('/folders/:user_id', async (c) => {
 documents.get('/:user_id/:file', async (c) => {
   try {
     const user_id = c.req.param('user_id');
-    const file = c.req.param('file');
+    const encodedFile = c.req.param('file');
+
+    // URL decode the file parameter to handle S3 keys with forward slashes
+    const file = decodeURIComponent(encodedFile);
+
     const document = await documentService.getDocument(user_id, file);
 
     if (!document) {
@@ -291,40 +302,17 @@ documents.post('/', async (c) => {
   }
 });
 
-// PUT /documents/:user_id/:file - Update a document
-documents.put('/:user_id/:file', async (c) => {
-  try {
-    const user_id = c.req.param('user_id');
-    const file = c.req.param('file');
-    const data: UpdateDocumentRequest = await c.req.json();
-
-    const document = await documentService.updateDocument(user_id, file, data);
-
-    if (!document) {
-      return c.json<ApiResponse>({
-        success: false,
-        error: 'Document not found'
-      }, 404);
-    }
-
-    return c.json<ApiResponse>({
-      success: true,
-      data: document
-    });
-  } catch (error) {
-    console.error('Error updating document:', error);
-    return c.json<ApiResponse>({
-      success: false,
-      error: 'Failed to update document'
-    }, 500);
-  }
-});
+// Document update functionality removed - edit functionality is no longer supported
 
 // GET /documents/:user_id/:file/download - Get download URL for a document
 documents.get('/:user_id/:file/download', async (c) => {
   try {
     const user_id = c.req.param('user_id');
-    const file = c.req.param('file');
+    const encodedFile = c.req.param('file');
+
+    // URL decode the file parameter to handle S3 keys with forward slashes
+    const file = decodeURIComponent(encodedFile);
+
     const document = await documentService.getDocument(user_id, file);
 
     if (!document) {
@@ -353,7 +341,11 @@ documents.get('/:user_id/:file/download', async (c) => {
 documents.delete('/:user_id/:file', async (c) => {
   try {
     const user_id = c.req.param('user_id');
-    const file = c.req.param('file');
+    const encodedFile = c.req.param('file');
+
+    // URL decode the file parameter to handle S3 keys with forward slashes
+    const file = decodeURIComponent(encodedFile);
+
     const document = await documentService.getDocument(user_id, file);
 
     if (!document) {

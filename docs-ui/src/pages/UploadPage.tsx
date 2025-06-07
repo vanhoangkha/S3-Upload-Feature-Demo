@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Container,
   Header,
@@ -14,12 +14,13 @@ import {
   FileUpload,
   FileUploadProps,
 } from '@cloudscape-design/components';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { DocumentService } from '../services/documentService';
 import { validateFile } from '../utils/helpers';
 
 export const UploadPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [files, setFiles] = useState<File[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -30,6 +31,22 @@ export const UploadPage: React.FC = () => {
   const [success, setSuccess] = useState('');
 
   const currentUserId = 'demo-user'; // In a real app, this would come from authentication
+
+  // Initialize folder path from URL parameters
+  useEffect(() => {
+    const urlFolderPath = searchParams.get('folder');
+    if (urlFolderPath) {
+      setFolderPath(urlFolderPath);
+      console.log(`Initialized folder path from URL: "${urlFolderPath}"`);
+    }
+  }, [searchParams]);
+
+  const getBackUrl = () => {
+    const urlFolderPath = searchParams.get('folder');
+    return urlFolderPath
+      ? `/documents?folder=${encodeURIComponent(urlFolderPath)}`
+      : '/documents';
+  };
 
   const handleFileChange = useCallback((detail: FileUploadProps.ChangeDetail) => {
     setFiles(detail.value);
@@ -120,9 +137,13 @@ export const UploadPage: React.FC = () => {
       setFolderPath('');
       setUploadProgress(0);
 
-      // Navigate to documents page after a short delay
+      // Navigate to documents page after a short delay, preserving folder context
       setTimeout(() => {
-        navigate('/documents');
+        const urlFolderPath = searchParams.get('folder');
+        const documentsUrl = urlFolderPath
+          ? `/documents?folder=${encodeURIComponent(urlFolderPath)}`
+          : '/documents';
+        navigate(documentsUrl);
       }, 2000);
 
     } catch (err) {
@@ -133,17 +154,22 @@ export const UploadPage: React.FC = () => {
     }
   };
 
+  const urlFolderPath = searchParams.get('folder');
+  const folderDescription = urlFolderPath
+    ? `Upload new documents to the "${urlFolderPath}" folder`
+    : "Upload new documents to your library";
+
   return (
     <Container
       header={
         <Header
           variant="h1"
-          description="Upload new documents to your library"
+          description={folderDescription}
           actions={
             <Button
               variant="link"
               iconName="arrow-left"
-              onClick={() => navigate('/documents')}
+              onClick={() => navigate(getBackUrl())}
             >
               Back to Documents
             </Button>
@@ -181,7 +207,7 @@ export const UploadPage: React.FC = () => {
             <SpaceBetween direction="horizontal" size="xs">
               <Button
                 variant="link"
-                onClick={() => navigate('/documents')}
+                onClick={() => navigate(getBackUrl())}
                 disabled={uploading}
               >
                 Cancel
@@ -242,7 +268,10 @@ export const UploadPage: React.FC = () => {
 
             <FormField
               label="Folder Path"
-              description="Optional folder path (e.g., Projects/Reports/2025). Leave empty to upload to root directory."
+              description={searchParams.get('folder')
+                ? "The folder path has been pre-filled based on your current location. You can modify it if needed."
+                : "Optional folder path (e.g., Projects/Reports/2025). Leave empty to upload to root directory."
+              }
             >
               <Input
                 value={folderPath}

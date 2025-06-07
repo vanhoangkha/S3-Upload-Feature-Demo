@@ -173,7 +173,6 @@ The frontend integrates with the `docs-api` backend through the following workfl
 
 - **List Documents**: Fetch paginated document lists with filtering
 - **View Details**: Get comprehensive document information
-- **Edit Metadata**: Update document titles and descriptions
 - **Download Files**: Get secure download URLs for file access
 - **Delete Documents**: Remove documents and associated S3 files
 

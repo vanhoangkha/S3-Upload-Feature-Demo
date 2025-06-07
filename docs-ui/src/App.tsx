@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
-import { DocumentsPage, DocumentDetailPage, UploadPage } from './pages';
+import { DocumentsPage, UploadPage } from './pages';
 
 function App() {
   return (
@@ -10,7 +10,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/documents" replace />} />
           <Route path="/documents" element={<DocumentsPage />} />
-          <Route path="/documents/:userId/:fileName" element={<DocumentDetailPage />} />
+          <Route path="/documents/*" element={<DocumentsPage />} />
           <Route path="/upload" element={<UploadPage />} />
         </Routes>
       </AppLayout>

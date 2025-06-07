@@ -13,7 +13,7 @@ app.use('*', logger());
 app.use('*', prettyJSON());
 app.use('*', cors({
   origin: config.allowedOrigins,
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
 }));
 
@@ -46,9 +46,8 @@ app.get('/', (c) => {
         'POST /api/documents/presigned-url - Generate presigned URLs',
         'POST /api/documents - Create document',
         'GET /api/documents/:user_id/:file - Get document',
-        'PUT /api/documents/:user_id/:file - Update document',
-        'DELETE /api/documents/:user_id/:file - Delete document',
-        'GET /api/documents/:user_id/:file/download - Get download URL'
+        'GET /api/documents/:user_id/:file/download - Get download URL',
+        'DELETE /api/documents/:user_id/:file - Delete document'
       ]
     }
   });

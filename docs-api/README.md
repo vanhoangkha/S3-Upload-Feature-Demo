@@ -4,7 +4,7 @@ A modern REST API built with HonoJS for managing document uploads and downloads 
 
 ## 🚀 Features
 
-- **Document Management**: Full CRUD operations for documents
+- **Document Management**: Create, read, and delete operations for documents
 - **S3 Presigned URLs**: Secure file upload and download without exposing AWS credentials
 - **DynamoDB Integration**: Efficient metadata storage with user-based partitioning
 - **TypeScript**: Full type safety and excellent developer experience
@@ -148,7 +148,6 @@ http://localhost:3001/api/documents
 | `POST` | `/presigned-url` | Generate S3 presigned URLs for upload |
 | `POST` | `/` | Create document metadata record |
 | `GET` | `/:user_id/:file` | Get specific document |
-| `PUT` | `/:user_id/:file` | Update document metadata |
 | `GET` | `/:user_id/:file/download` | Get download URL |
 | `DELETE` | `/:user_id/:file` | Delete document and file |
 
@@ -215,18 +214,7 @@ curl http://localhost:3001/api/documents/user123/example.pdf
 curl http://localhost:3001/api/documents/user123/example.pdf/download
 ```
 
-#### 6. Update Document
-
-```bash
-curl -X PUT http://localhost:3001/api/documents/user123/example.pdf \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Updated Document Title",
-    "description": "Updated description"
-  }'
-```
-
-#### 7. Delete Document
+#### 6. Delete Document
 
 ```bash
 curl -X DELETE http://localhost:3001/api/documents/user123/example.pdf

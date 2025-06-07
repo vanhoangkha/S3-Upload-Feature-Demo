@@ -13,13 +13,14 @@ import {
   Input,
   FormField,
 } from '@cloudscape-design/components';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Document, FolderItem } from '../types';
 import { DocumentService } from '../services/documentService';
-import { formatFileSize, formatDate, getFileIcon, getBreadcrumbs } from '../utils/helpers';
+import { formatFileSize, formatDate, getFileIcon, getBreadcrumbs, isFilePath, getFileNameFromPath, getFolderPathFromFilePath } from '../utils/helpers';
 
 export const DocumentsPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedItems, setSelectedItems] = useState<Document[]>([]);
@@ -32,10 +33,69 @@ export const DocumentsPage: React.FC = () => {
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [folderCreationError, setFolderCreationError] = useState('');
+  const [viewingFile, setViewingFile] = useState<Document | null>(null);
   // const [lastEvaluatedKey, setLastEvaluatedKey] = useState<string>();
 
   const pageSize = 10;
   const currentUserId = 'demo-user'; // In a real app, this would come from authentication
+
+  // Extract folder path from URL
+  const getFolderPathFromUrl = useCallback(() => {
+    const pathname = location.pathname;
+    const documentsPath = '/documents';
+
+    if (pathname === documentsPath) {
+      return '';
+    }
+
+    if (pathname.startsWith(documentsPath + '/')) {
+      // Remove the /documents/ prefix and decode any URI components
+      const fullPath = decodeURIComponent(pathname.substring(documentsPath.length + 1));
+
+      // Check if this is a file path
+      if (isFilePath(fullPath)) {
+        // Return the folder path (everything except the filename)
+        return getFolderPathFromFilePath(fullPath);
+      }
+
+      // It's a folder path
+      return fullPath;
+    }
+
+    return '';
+  }, [location.pathname]);
+
+  // Check if URL points to a file
+  const getFileFromUrl = useCallback(() => {
+    const pathname = location.pathname;
+    const documentsPath = '/documents';
+
+    if (pathname.startsWith(documentsPath + '/')) {
+      const fullPath = decodeURIComponent(pathname.substring(documentsPath.length + 1));
+
+      if (isFilePath(fullPath)) {
+        return getFileNameFromPath(fullPath);
+      }
+    }
+
+    return null;
+  }, [location.pathname]);
+
+  // Initialize folder path from URL and check for file viewing
+  useEffect(() => {
+    const urlFolderPath = getFolderPathFromUrl();
+    const urlFileName = getFileFromUrl();
+
+    if (urlFolderPath !== currentFolderPath) {
+      setCurrentFolderPath(urlFolderPath);
+      console.log(`Initialized folder path from URL: "${urlFolderPath}"`);
+    }
+
+    // If URL points to a file, we'll handle file viewing after documents are loaded
+    if (urlFileName) {
+      console.log(`URL points to file: "${urlFileName}"`);
+    }
+  }, [getFolderPathFromUrl, getFileFromUrl, currentFolderPath]);
 
   const loadDocuments = useCallback(async () => {
     try {
@@ -107,12 +167,33 @@ export const DocumentsPage: React.FC = () => {
 
       setFolderStructure({ folders, files: filesWithDocuments });
 
+      // Check if URL points to a specific file
+      const urlFileName = getFileFromUrl();
+      if (urlFileName) {
+        // Find the document that matches the filename
+        const fileDocument = currentFolderDocuments.find(doc => {
+          const docFileName = doc.s3Key.split('/').pop();
+          return docFileName === urlFileName;
+        });
+
+        if (fileDocument) {
+          setViewingFile(fileDocument);
+        } else {
+          setError(`File "${urlFileName}" not found`);
+          // Navigate back to folder view
+          const folderPath = currentFolderPath ? `/documents/${currentFolderPath}` : '/documents';
+          navigate(folderPath, { replace: true });
+        }
+      } else {
+        setViewingFile(null);
+      }
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load documents');
     } finally {
       setLoading(false);
     }
-  }, [currentFolderPath]);
+  }, [currentFolderPath, getFileFromUrl, navigate]);
 
   useEffect(() => {
     loadDocuments();
@@ -145,15 +226,25 @@ export const DocumentsPage: React.FC = () => {
     }
   };
 
+  const handleFileNavigation = (document: Document) => {
+    // Construct file path from S3 key
+    const s3KeyParts = document.s3Key.split('/');
+    const filePath = s3KeyParts.slice(2).join('/'); // Remove "protected/user_id/" prefix
+    const navigationPath = `/documents/${filePath}`;
+    navigate(navigationPath);
+  };
+
   const handleFolderNavigation = (folderPath: string) => {
-    setCurrentFolderPath(folderPath);
+    const navigationPath = folderPath ? `/documents/${folderPath}` : '/documents';
+    navigate(navigationPath);
     setCurrentPageIndex(1);
     setSelectedItems([]);
   };
 
   const handleBreadcrumbClick = (path: string) => {
     console.log(`Navigating to breadcrumb path: "${path}"`);
-    setCurrentFolderPath(path);
+    const navigationPath = path ? `/documents/${path}` : '/documents';
+    navigate(navigationPath);
     setCurrentPageIndex(1);
     setSelectedItems([]);
   };
@@ -209,19 +300,25 @@ export const DocumentsPage: React.FC = () => {
           );
         } else {
           const displayName = item.document?.title || item.name;
-          const linkTarget = item.document
-            ? `/documents/${item.document.user_id}/${item.document.file}`
-            : '#'; // For files without document metadata, don't navigate
 
-          return (
-            <Button
-              variant={item.document ? "link" : "normal"}
-              onClick={() => item.document && navigate(linkTarget)}
-              disabled={!item.document}
-            >
-              {displayName}
-            </Button>
-          );
+          if (item.document) {
+            // Files with document metadata - make them clickable
+            return (
+              <Button
+                variant="link"
+                onClick={() => handleFileNavigation(item.document)}
+              >
+                {displayName}
+              </Button>
+            );
+          } else {
+            // Files without metadata - not clickable
+            return (
+              <span>
+                {displayName}
+              </span>
+            );
+          }
         }
       },
       sortingField: 'name',
@@ -259,22 +356,13 @@ export const DocumentsPage: React.FC = () => {
         if (item.document) {
           // Files with metadata
           return (
-            <SpaceBetween direction="horizontal" size="xs">
-              <Button
-                variant="normal"
-                iconName="download"
-                onClick={() => handleDownload(item.document)}
-              >
-                Download
-              </Button>
-              <Button
-                variant="normal"
-                iconName="edit"
-                onClick={() => navigate(`/documents/${item.document.user_id}/${item.document.file}`)}
-              >
-                Edit
-              </Button>
-            </SpaceBetween>
+            <Button
+              variant="normal"
+              iconName="download"
+              onClick={() => handleDownload(item.document)}
+            >
+              Download
+            </Button>
           );
         } else {
           // Files without metadata (direct S3 files)
@@ -330,240 +418,355 @@ export const DocumentsPage: React.FC = () => {
   };
 
   return (
-    <Container
-      header={
-        <Header
-          variant="h1"
-          description={`Manage your uploaded documents${currentFolderPath ? ` in ${currentFolderPath}` : ' (Root Directory)'}`}
-          actions={
-            <SpaceBetween direction="horizontal" size="xs">
-              <Button
-                variant="normal"
-                iconName="refresh"
-                onClick={loadDocuments}
-                loading={loading}
-              >
-                Refresh
-              </Button>
-              <Button
-                variant="normal"
-                iconName="folder"
-                onClick={() => {
-                  setShowCreateFolderModal(true);
-                  setFolderCreationError('');
-                  setNewFolderName('');
-                }}
-              >
-                Create Folder
-              </Button>
-              <Button
-                variant="primary"
-                iconName="add-plus"
-                onClick={() => navigate('/upload')}
-              >
-                Upload Document
-              </Button>
-            </SpaceBetween>
+    <>
+      {viewingFile ? (
+        // File Detail View
+        <Container
+          header={
+            <Header
+              variant="h1"
+              description="File Details"
+              actions={
+                <SpaceBetween direction="horizontal" size="xs">
+                  <Button
+                    variant="normal"
+                    iconName="arrow-left"
+                    onClick={() => {
+                      const folderPath = currentFolderPath ? `/documents/${currentFolderPath}` : '/documents';
+                      navigate(folderPath);
+                    }}
+                  >
+                    Back to Folder
+                  </Button>
+                  <Button
+                    variant="primary"
+                    iconName="download"
+                    onClick={() => handleDownload(viewingFile)}
+                  >
+                    Download
+                  </Button>
+                </SpaceBetween>
+              }
+            >
+              {viewingFile.title}
+            </Header>
           }
         >
-          Documents
-        </Header>
-      }
-    >
-      {error && (
-        <Alert
-          type="error"
-          dismissible
-          onDismiss={() => setError('')}
-          header="Error"
-        >
-          {error}
-        </Alert>
-      )}
+          {error && (
+            <Alert
+              type="error"
+              dismissible
+              onDismiss={() => setError('')}
+              header="Error"
+            >
+              {error}
+            </Alert>
+          )}
 
-      {/* Breadcrumb Navigation */}
-      <Box margin={{ bottom: 'm' }}>
-        <SpaceBetween direction="horizontal" size="xs">
-          {getBreadcrumbs(currentFolderPath).map((breadcrumb, index) => (
-            <React.Fragment key={breadcrumb.path || 'root'}>
-              {index > 0 && <span style={{ color: '#687078' }}>/</span>}
-              <Button
-                variant="link"
-                onClick={() => {
-                  console.log(`Breadcrumb clicked: "${breadcrumb.name}" -> path: "${breadcrumb.path}"`);
-                  handleBreadcrumbClick(breadcrumb.path);
-                }}
-                ariaLabel={`Navigate to ${breadcrumb.name}`}
-              >
-                {breadcrumb.name}
-              </Button>
-            </React.Fragment>
-          ))}
-        </SpaceBetween>
-      </Box>
+          {/* Breadcrumb Navigation */}
+          <Box margin={{ bottom: 'm' }}>
+            <SpaceBetween direction="horizontal" size="xs">
+              {getBreadcrumbs(currentFolderPath).map((breadcrumb, index) => (
+                <React.Fragment key={breadcrumb.path || 'root'}>
+                  {index > 0 && <span style={{ color: '#687078' }}>/</span>}
+                  <Button
+                    variant="link"
+                    onClick={() => handleBreadcrumbClick(breadcrumb.path)}
+                    ariaLabel={`Navigate to ${breadcrumb.name}`}
+                  >
+                    {breadcrumb.name}
+                  </Button>
+                </React.Fragment>
+              ))}
+              <span style={{ color: '#687078' }}>/</span>
+              <span style={{ fontWeight: 'bold' }}>{viewingFile.file}</span>
+            </SpaceBetween>
+          </Box>
 
-      <Table
-        columnDefinitions={columnDefinitions}
-        items={tableItems}
-        loading={loading}
-        loadingText="Loading documents..."
-        selectedItems={selectedItems.filter(item => folderStructure.files.some(file => file.document?.user_id === item.user_id && file.document?.file === item.file))}
-        onSelectionChange={({ detail }) => {
-          // Only allow selection of files, not folders
-          const fileItems = detail.selectedItems.filter((item: any) => item.itemType === 'file');
-          setSelectedItems(fileItems.map((item: any) => item.document));
-        }}
-        selectionType="multi"
-        ariaLabels={{
-          selectionGroupLabel: 'Items selection',
-          allItemsSelectionLabel: ({ selectedItems }) =>
-            `${selectedItems.length} ${selectedItems.length === 1 ? 'item' : 'items'
-            } selected`,
-          itemSelectionLabel: ({ selectedItems }, item) => {
-            const isItemSelected = selectedItems.filter(
-              (i) => i.file === item.file
-            ).length;
-            return `${item.title} is ${isItemSelected ? '' : 'not '
-              }selected`;
-          },
-        }}
-        header={
-          <Header
-            counter={`(${filteredDocuments.length})`}
-            actions={
-              <SpaceBetween direction="horizontal" size="xs">
-                <Button
-                  disabled={selectedItems.length === 0}
-                  onClick={() => setShowDeleteModal(true)}
-                  variant="normal"
-                  iconName="remove"
-                >
-                  Delete Selected
-                </Button>
+          {/* File Details */}
+          <SpaceBetween size="l">
+            <Box>
+              <SpaceBetween size="m">
+                <div>
+                  <Box variant="awsui-key-label">File Name</Box>
+                  <Box>{viewingFile.file}</Box>
+                </div>
+                <div>
+                  <Box variant="awsui-key-label">Title</Box>
+                  <Box>{viewingFile.title}</Box>
+                </div>
+                <div>
+                  <Box variant="awsui-key-label">Description</Box>
+                  <Box>{viewingFile.description || 'No description provided'}</Box>
+                </div>
+                <div>
+                  <Box variant="awsui-key-label">File Size</Box>
+                  <Box>{formatFileSize(viewingFile.fileSize)}</Box>
+                </div>
+                <div>
+                  <Box variant="awsui-key-label">MIME Type</Box>
+                  <Box>{viewingFile.mimeType}</Box>
+                </div>
+                <div>
+                  <Box variant="awsui-key-label">Upload Date</Box>
+                  <Box>{formatDate(viewingFile.createdAt)}</Box>
+                </div>
+                <div>
+                  <Box variant="awsui-key-label">S3 Key</Box>
+                  <Box>{viewingFile.s3Key}</Box>
+                </div>
               </SpaceBetween>
+            </Box>
+          </SpaceBetween>
+        </Container>
+      ) : (
+        // Folder View (existing code)
+        <Container
+          header={
+            <Header
+              variant="h1"
+              description={`Manage your uploaded documents${currentFolderPath ? ` in ${currentFolderPath}` : ' (Root Directory)'}`}
+              actions={
+                <SpaceBetween direction="horizontal" size="xs">
+                  <Button
+                    variant="normal"
+                    iconName="refresh"
+                    onClick={loadDocuments}
+                    loading={loading}
+                  >
+                    Refresh
+                  </Button>
+                  <Button
+                    variant="normal"
+                    iconName="folder"
+                    onClick={() => {
+                      setShowCreateFolderModal(true);
+                      setFolderCreationError('');
+                      setNewFolderName('');
+                    }}
+                  >
+                    Create Folder
+                  </Button>
+                  <Button
+                    variant="primary"
+                    iconName="add-plus"
+                    onClick={() => {
+                      const uploadUrl = currentFolderPath
+                        ? `/upload?folder=${encodeURIComponent(currentFolderPath)}`
+                        : '/upload';
+                      navigate(uploadUrl);
+                    }}
+                  >
+                    Upload Document
+                  </Button>
+                </SpaceBetween>
+              }
+            >
+              Documents
+            </Header>
+          }
+        >
+          {error && (
+            <Alert
+              type="error"
+              dismissible
+              onDismiss={() => setError('')}
+              header="Error"
+            >
+              {error}
+            </Alert>
+          )}
+
+          {/* Breadcrumb Navigation */}
+          <Box margin={{ bottom: 'm' }}>
+            <SpaceBetween direction="horizontal" size="xs">
+              {getBreadcrumbs(currentFolderPath).map((breadcrumb, index) => (
+                <React.Fragment key={breadcrumb.path || 'root'}>
+                  {index > 0 && <span style={{ color: '#687078' }}>/</span>}
+                  <Button
+                    variant="link"
+                    onClick={() => {
+                      console.log(`Breadcrumb clicked: "${breadcrumb.name}" -> path: "${breadcrumb.path}"`);
+                      handleBreadcrumbClick(breadcrumb.path);
+                    }}
+                    ariaLabel={`Navigate to ${breadcrumb.name}`}
+                  >
+                    {breadcrumb.name}
+                  </Button>
+                </React.Fragment>
+              ))}
+            </SpaceBetween>
+          </Box>
+
+          <Table
+            columnDefinitions={columnDefinitions}
+            items={tableItems}
+            loading={loading}
+            loadingText="Loading documents..."
+            selectedItems={selectedItems.filter(item => folderStructure.files.some(file => file.document?.user_id === item.user_id && file.document?.file === item.file))}
+            onSelectionChange={({ detail }) => {
+              // Only allow selection of files, not folders
+              const fileItems = detail.selectedItems.filter((item: any) => item.itemType === 'file');
+              setSelectedItems(fileItems.map((item: any) => item.document));
+            }}
+            selectionType="multi"
+            ariaLabels={{
+              selectionGroupLabel: 'Items selection',
+              allItemsSelectionLabel: ({ selectedItems }) =>
+                `${selectedItems.length} ${selectedItems.length === 1 ? 'item' : 'items'
+                } selected`,
+              itemSelectionLabel: ({ selectedItems }, item) => {
+                const isItemSelected = selectedItems.filter(
+                  (i) => i.file === item.file
+                ).length;
+                return `${item.title} is ${isItemSelected ? '' : 'not '
+                  }selected`;
+              },
+            }}
+            header={
+              <Header
+                counter={`(${filteredDocuments.length})`}
+                actions={
+                  <SpaceBetween direction="horizontal" size="xs">
+                    <Button
+                      disabled={selectedItems.length === 0}
+                      onClick={() => setShowDeleteModal(true)}
+                      variant="normal"
+                      iconName="remove"
+                    >
+                      Delete Selected
+                    </Button>
+                  </SpaceBetween>
+                }
+              >
+                Documents
+              </Header>
+            }
+            filter={
+              <TextFilter
+                filteringPlaceholder="Search documents..."
+                filteringText={filteringText}
+                onChange={({ detail }) => setFilteringText(detail.filteringText)}
+              />
+            }
+            pagination={
+              <Pagination
+                currentPageIndex={currentPageIndex}
+                onChange={({ detail }) => setCurrentPageIndex(detail.currentPageIndex)}
+                pagesCount={Math.ceil(filteredDocuments.length / pageSize)}
+              />
+            }
+            empty={
+              <Box textAlign="center" color="inherit">
+                <Box variant="strong" textAlign="center" color="inherit">
+                  No documents
+                </Box>
+                <Box variant="p" padding={{ bottom: 's' }} color="inherit">
+                  You haven't uploaded any documents yet.
+                </Box>
+                <Button
+                  variant="primary"
+                  iconName="add-plus"
+                  onClick={() => {
+                    const uploadUrl = currentFolderPath
+                      ? `/upload?folder=${encodeURIComponent(currentFolderPath)}`
+                      : '/upload';
+                    navigate(uploadUrl);
+                  }}
+                >
+                  Upload your first document
+                </Button>
+              </Box>
+            }
+          />
+
+          <Modal
+            visible={showDeleteModal}
+            onDismiss={() => setShowDeleteModal(false)}
+            header="Delete Documents"
+            closeAriaLabel="Close modal"
+            footer={
+              <Box float="right">
+                <SpaceBetween direction="horizontal" size="xs">
+                  <Button variant="link" onClick={() => setShowDeleteModal(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handleDeleteSelected}
+                    loading={loading}
+                  >
+                    Delete
+                  </Button>
+                </SpaceBetween>
+              </Box>
             }
           >
-            Documents
-          </Header>
-        }
-        filter={
-          <TextFilter
-            filteringPlaceholder="Search documents..."
-            filteringText={filteringText}
-            onChange={({ detail }) => setFilteringText(detail.filteringText)}
-          />
-        }
-        pagination={
-          <Pagination
-            currentPageIndex={currentPageIndex}
-            onChange={({ detail }) => setCurrentPageIndex(detail.currentPageIndex)}
-            pagesCount={Math.ceil(filteredDocuments.length / pageSize)}
-          />
-        }
-        empty={
-          <Box textAlign="center" color="inherit">
-            <Box variant="strong" textAlign="center" color="inherit">
-              No documents
-            </Box>
-            <Box variant="p" padding={{ bottom: 's' }} color="inherit">
-              You haven't uploaded any documents yet.
-            </Box>
-            <Button
-              variant="primary"
-              iconName="add-plus"
-              onClick={() => navigate('/upload')}
-            >
-              Upload your first document
-            </Button>
-          </Box>
-        }
-      />
-
-      <Modal
-        visible={showDeleteModal}
-        onDismiss={() => setShowDeleteModal(false)}
-        header="Delete Documents"
-        closeAriaLabel="Close modal"
-        footer={
-          <Box float="right">
-            <SpaceBetween direction="horizontal" size="xs">
-              <Button variant="link" onClick={() => setShowDeleteModal(false)}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                onClick={handleDeleteSelected}
-                loading={loading}
-              >
-                Delete
-              </Button>
+            <SpaceBetween size="m">
+              <Box variant="span">
+                Are you sure you want to delete {selectedItems.length} document(s)?
+                This action cannot be undone.
+              </Box>
+              {selectedItems.map((item) => (
+                <Box key={item.file} variant="span">
+                  • {item.title}
+                </Box>
+              ))}
             </SpaceBetween>
-          </Box>
-        }
-      >
-        <SpaceBetween size="m">
-          <Box variant="span">
-            Are you sure you want to delete {selectedItems.length} document(s)?
-            This action cannot be undone.
-          </Box>
-          {selectedItems.map((item) => (
-            <Box key={item.file} variant="span">
-              • {item.title}
-            </Box>
-          ))}
-        </SpaceBetween>
-      </Modal>
+          </Modal>
 
-      <Modal
-        visible={showCreateFolderModal}
-        onDismiss={() => {
-          setShowCreateFolderModal(false);
-          setFolderCreationError('');
-          setNewFolderName('');
-        }}
-        header="Create New Folder"
-        closeAriaLabel="Close modal"
-        footer={
-          <Box float="right">
-            <SpaceBetween direction="horizontal" size="xs">
-              <Button variant="link" onClick={() => {
-                setShowCreateFolderModal(false);
-                setFolderCreationError('');
-                setNewFolderName('');
-              }}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                onClick={handleCreateFolder}
-                loading={loading}
-              >
-                Create Folder
-              </Button>
-            </SpaceBetween>
-          </Box>
-        }
-      >
-        <SpaceBetween size="m">
-          <FormField
-            label="Folder Name"
-            description="Enter a name for the new folder"
-            errorText={folderCreationError}
+          <Modal
+            visible={showCreateFolderModal}
+            onDismiss={() => {
+              setShowCreateFolderModal(false);
+              setFolderCreationError('');
+              setNewFolderName('');
+            }}
+            header="Create New Folder"
+            closeAriaLabel="Close modal"
+            footer={
+              <Box float="right">
+                <SpaceBetween direction="horizontal" size="xs">
+                  <Button variant="link" onClick={() => {
+                    setShowCreateFolderModal(false);
+                    setFolderCreationError('');
+                    setNewFolderName('');
+                  }}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handleCreateFolder}
+                    loading={loading}
+                  >
+                    Create Folder
+                  </Button>
+                </SpaceBetween>
+              </Box>
+            }
           >
-            <Input
-              value={newFolderName}
-              onChange={({ detail }) => {
-                setNewFolderName(detail.value);
-                setFolderCreationError(''); // Clear error when user starts typing
-              }}
-              placeholder="e.g. Reports, Archives, 2025"
-            />
-          </FormField>
-          <Box variant="span" color="inherit">
-            <strong>Location:</strong> {currentFolderPath || 'Root'} / {newFolderName || '[Folder Name]'}
-          </Box>
-        </SpaceBetween>
-      </Modal>
-    </Container>
+            <SpaceBetween size="m">
+              <FormField
+                label="Folder Name"
+                description="Enter a name for the new folder"
+                errorText={folderCreationError}
+              >
+                <Input
+                  value={newFolderName}
+                  onChange={({ detail }) => {
+                    setNewFolderName(detail.value);
+                    setFolderCreationError(''); // Clear error when user starts typing
+                  }}
+                  placeholder="e.g. Reports, Archives, 2025"
+                />
+              </FormField>
+              <Box variant="span" color="inherit">
+                <strong>Location:</strong> {currentFolderPath || 'Root'} / {newFolderName || '[Folder Name]'}
+              </Box>
+            </SpaceBetween>
+          </Modal>
+        </Container>
+      )}
+    </>
   );
 };

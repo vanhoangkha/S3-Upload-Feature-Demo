@@ -59,10 +59,7 @@ export interface CreateDocumentRequest {
   user_id: string;
 }
 
-export interface UpdateDocumentRequest {
-  title?: string;
-  description?: string;
-}
+// Document update functionality has been removed - viewing and downloading only
 
 export interface ApiResponse<T> {
   success: boolean;
