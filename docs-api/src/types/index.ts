@@ -11,6 +11,10 @@ export interface Document {
   createdAt: string;
   updatedAt: string;
   bucket?: string;  // S3 bucket name
+  // New fields for folder structure
+  itemType: 'file' | 'folder';  // Distinguish between files and folders
+  folderPath: string;  // Parent folder path (e.g., "documents/subfolder" or "" for root)
+  isActive?: boolean;  // For soft deletes
 }
 
 export interface CreateDocumentRequest {
@@ -20,6 +24,26 @@ export interface CreateDocumentRequest {
   fileSize: number;
   mimeType: string;
   user_id: string;
+  folderPath?: string;  // Add folder path to creation request
+}
+
+export interface CreateFolderRequest {
+  user_id: string;
+  folderName: string;
+  parentPath?: string;  // Parent folder path
+}
+
+export interface FolderItem {
+  name: string;
+  path: string;
+  type: 'file' | 'folder';
+  document?: Document;  // For files, reference to document metadata
+}
+
+export interface FolderListResponse {
+  currentPath: string;
+  folders: FolderItem[];
+  files: FolderItem[];
 }
 
 // Document update functionality removed - edit functionality is no longer supported

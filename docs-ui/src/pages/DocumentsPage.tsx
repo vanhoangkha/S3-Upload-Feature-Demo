@@ -102,76 +102,45 @@ export const DocumentsPage: React.FC = () => {
       setLoading(true);
       setError('');
 
-      // Use the new S3-based folder listing API
-      const folderResponse = await DocumentService.listFolders(currentUserId, currentFolderPath);
+      // Clear previous data immediately to prevent showing stale data
+      setFolderStructure({ folders: [], files: [] });
+      setDocuments([]);
 
-      // Convert S3FolderListResponse to our existing FolderItem format
-      const folders: FolderItem[] = folderResponse.folders.map(folder => ({
+      console.log(`[OPTIMIZED] Loading folder contents for path: "${currentFolderPath}"`);
+
+      // OPTIMIZED: Single DynamoDB-first call to get folders and files
+      const folderContents = await DocumentService.listFolderContents(currentUserId, currentFolderPath);
+
+      console.log(`[OPTIMIZED] Loaded ${folderContents.folders.length} folders and ${folderContents.files.length} files`);
+
+      // Convert to our existing FolderItem format
+      const folders: FolderItem[] = folderContents.folders.map(folder => ({
         name: folder.name,
-        path: folder.path || folder.name,
+        path: folder.path,
         type: 'folder' as const
       }));
 
-      const files: FolderItem[] = folderResponse.files.map(file => ({
+      const files: FolderItem[] = folderContents.files.map(file => ({
         name: file.name,
-        path: file.s3Key || file.name,
+        path: file.path,
         type: 'file' as const,
-        // We'll need the document details for file operations, so let's also load documents
-        document: undefined // Will be populated below if needed
+        document: file.document
       }));
 
+      // Extract documents for backward compatibility
+      const documents = folderContents.files
+        .map(file => file.document)
+        .filter((doc): doc is Document => doc !== undefined);
+
+      // Update state all at once to prevent multiple renders
+      setDocuments(documents);
       setFolderStructure({ folders, files });
-
-      // Also load documents for the current folder to get full document metadata
-      // This is needed for file operations like download, delete, etc.
-      const response = await DocumentService.listDocuments({
-        user_id: currentUserId,
-        limit: 1000, // Get all documents to filter by folder
-      });
-
-      // Filter documents that belong to the current folder
-      const currentFolderDocuments = response.documents.filter(doc => {
-        // Extract folder path from S3 key (e.g., "protected/demo-user/A/B/file.txt" -> "A/B")
-        const keyParts = doc.s3Key.split('/');
-        if (keyParts.length <= 2) {
-          // File is in root directory (e.g., "protected/demo-user/file.txt")
-          return currentFolderPath === '';
-        } else {
-          // File is in a subfolder
-          const docFolderPath = keyParts.slice(2, -1).join('/'); // Remove "protected", user_id, and filename
-          return docFolderPath === currentFolderPath;
-        }
-      });
-
-      setDocuments(currentFolderDocuments);
-
-      // Attach document metadata to files for operations like download/delete
-      const filesWithDocuments: FolderItem[] = files.map(file => {
-        // Try to find a matching document by s3Key (most accurate) or by filename (fallback)
-        const matchingDoc = currentFolderDocuments.find(doc => {
-          // Match by exact S3 key (most accurate)
-          if (doc.s3Key === file.path) return true;
-
-          // Alternative match: compare just the filename
-          const docFileName = doc.s3Key.split('/').pop();
-          return docFileName === file.name;
-        });
-
-        console.log(`File: ${file.name}, Path: ${file.path}, Has doc: ${!!matchingDoc}`);
-
-        return {
-          ...file,
-          document: matchingDoc
-        };
-      });
-
-      setFolderStructure({ folders, files: filesWithDocuments });
 
       // Check if URL points to a specific file
       const urlFileName = getFileFromUrl();
       if (urlFileName) {
         // Find the document that matches the filename
-        const fileDocument = currentFolderDocuments.find(doc => {
+        const fileDocument = documents.find(doc => {
           const docFileName = doc.s3Key.split('/').pop();
           return docFileName === urlFileName;
         });
@@ -189,7 +158,11 @@ export const DocumentsPage: React.FC = () => {
       }
 
     } catch (err) {
+      console.error('[OPTIMIZED] Error loading folder contents:', err);
       setError(err instanceof Error ? err.message : 'Failed to load documents');
+      // Clear data on error to prevent showing stale data
+      setFolderStructure({ folders: [], files: [] });
+      setDocuments([]);
     } finally {
       setLoading(false);
     }
@@ -400,12 +373,15 @@ export const DocumentsPage: React.FC = () => {
     try {
       setLoading(true);
       setFolderCreationError('');
-      const folderPath = currentFolderPath
-        ? `${currentFolderPath}/${newFolderName.trim()}`
-        : newFolderName.trim();
 
-      // Use the API to create the folder
-      await DocumentService.createFolder(currentUserId, folderPath);
+      console.log(`[OPTIMIZED] Creating folder "${newFolderName.trim()}" in path "${currentFolderPath}"`);
+
+      // OPTIMIZED: Use the new DynamoDB-first folder creation
+      await DocumentService.createFolderOptimized(
+        currentUserId,
+        newFolderName.trim(),
+        currentFolderPath || undefined
+      );
 
       setNewFolderName('');
       setShowCreateFolderModal(false);

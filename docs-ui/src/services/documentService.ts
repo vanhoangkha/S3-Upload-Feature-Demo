@@ -197,7 +197,32 @@ export class DocumentService {
     }
   }
 
-  // Create folder
+  // OPTIMIZED: Create folder using DynamoDB-first approach
+  static async createFolderOptimized(userId: string, folderName: string, parentFolderPath?: string): Promise<{
+    id: string;
+    folderName: string;
+    folderPath: string;
+    message: string;
+  }> {
+    const response = await api.post<ApiResponse<{
+      id: string;
+      folderName: string;
+      folderPath: string;
+      message: string;
+    }>>('/documents/folders', {
+      user_id: userId,
+      folderName,
+      parentFolderPath: parentFolderPath || '',
+    });
+
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to create folder');
+    }
+
+    return response.data.data;
+  }
+
+  // LEGACY: Create folder (S3-based - kept for backward compatibility)
   static async createFolder(userId: string, folderPath: string): Promise<{ folderPath: string; message: string }> {
     const response = await api.post<ApiResponse<{ folderPath: string; message: string }>>('/documents/folders', {
       folderPath,
@@ -211,7 +236,33 @@ export class DocumentService {
     return response.data.data;
   }
 
-  // List folders and files
+  // OPTIMIZED: List folders and files using DynamoDB-first approach
+  static async listFolderContents(userId: string, folderPath?: string): Promise<{
+    folders: { name: string; path: string; type: 'folder' }[];
+    files: { name: string; path: string; type: 'file'; document?: Document }[];
+    currentPath: string;
+  }> {
+    const searchParams = new URLSearchParams();
+    searchParams.append('user_id', userId);
+    if (folderPath && folderPath.trim()) {
+      searchParams.append('path', folderPath);
+    }
+
+    const url = `/documents/folders?${searchParams}`;
+    const response = await api.get<ApiResponse<{
+      folders: { name: string; path: string; type: 'folder' }[];
+      files: { name: string; path: string; type: 'file'; document?: Document }[];
+      currentPath: string;
+    }>>(url);
+
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to list folder contents');
+    }
+
+    return response.data.data;
+  }
+
+  // LEGACY: List folders and files (S3-based - kept for backward compatibility)
   static async listFolders(userId: string, folderPath?: string): Promise<S3FolderListResponse> {
     const searchParams = new URLSearchParams();
     if (folderPath && folderPath.trim()) {

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { DocumentService } from '../services/document-service';
 import { S3Service } from '../services/s3-service';
-import { CreateDocumentRequest, ApiResponse } from '../types';
+import { CreateDocumentRequest, CreateFolderRequest, ApiResponse } from '../types';
 import { S3FolderItem, S3FolderListResponse } from '../types/folder';
 
 const documents = new Hono();
@@ -49,62 +49,74 @@ documents.get('/', async (c) => {
   }
 });
 
-// POST /documents/folders - Create a new folder
+// POST /documents/folders - OPTIMIZED: Create a new folder (stores in DynamoDB)
 documents.post('/folders', async (c) => {
   try {
-    const { folderPath, user_id } = await c.req.json();
+    const requestData = await c.req.json();
 
-    if (!folderPath || !user_id) {
+    // Handle both legacy and new request formats
+    let data: CreateFolderRequest;
+
+    if (requestData.folderPath && requestData.user_id) {
+      // Legacy format: { folderPath: "A/B/NewFolder", user_id: "demo-user" }
+      console.log('[LEGACY] Converting old folder creation format to new format');
+      const folderPath = requestData.folderPath;
+      const pathParts = folderPath.split('/');
+      const folderName = pathParts.pop(); // Get the last part as folder name
+      const parentPath = pathParts.length > 0 ? pathParts.join('/') : '';
+
+      data = {
+        user_id: requestData.user_id,
+        folderName: folderName || '',
+        parentPath: parentPath || undefined,
+      };
+    } else if (requestData.folderName && requestData.user_id) {
+      // New format: { folderName: "NewFolder", user_id: "demo-user", parentFolderPath?: "A/B" }
+      console.log('[OPTIMIZED] Using new folder creation format');
+      data = {
+        user_id: requestData.user_id,
+        folderName: requestData.folderName,
+        parentPath: requestData.parentFolderPath || undefined,
+      };
+    } else {
       return c.json<ApiResponse>({
         success: false,
-        error: 'folderPath and user_id are required'
+        error: 'Either (folderPath and user_id) or (folderName and user_id) are required'
       }, 400);
     }
 
-    // Validate folder path (no special characters except spaces, hyphens, underscores, slashes)
-    const folderPathRegex = /^[a-zA-Z0-9\s\-_/]+$/;
-    if (!folderPathRegex.test(folderPath)) {
+    if (!data.user_id || !data.folderName) {
       return c.json<ApiResponse>({
         success: false,
-        error: 'Folder path can only contain letters, numbers, spaces, hyphens, underscores, and forward slashes'
+        error: 'user_id and folderName are required'
       }, 400);
     }
 
-    // Normalize the folder path
-    const normalizedPath = folderPath.trim().replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
-
-    // Create S3 key for folder metadata
-    const folderKey = `protected/${user_id}/${normalizedPath}/.folder_metadata`;
-
-    // Check if folder already exists
-    const exists = await s3Service.checkObjectExists(folderKey);
-    if (exists) {
+    // Validate folder name (no special characters except spaces, hyphens, underscores)
+    const folderNameRegex = /^[a-zA-Z0-9\s\-_]+$/;
+    if (!folderNameRegex.test(data.folderName)) {
       return c.json<ApiResponse>({
         success: false,
-        error: 'Folder already exists'
-      }, 409);
+        error: 'Folder name can only contain letters, numbers, spaces, hyphens, and underscores'
+      }, 400);
     }
 
-    // Create folder metadata
-    const folderMetadata = {
-      type: 'folder',
-      name: normalizedPath.split('/').pop(),
-      path: normalizedPath,
-      createdAt: new Date().toISOString(),
-      createdBy: user_id,
-      version: '1.0'
-    };
+    console.log(`[OPTIMIZED] Creating folder: ${data.folderName} in path: ${data.parentPath || 'root'}`);
 
-    // Upload folder metadata to S3
-    await s3Service.uploadObject(folderKey, JSON.stringify(folderMetadata), 'application/json');
+    const folder = await documentService.createFolder(data);
+
+    // Return format compatible with both legacy and new frontend code
+    const folderPath = data.parentPath ? `${data.parentPath}/${data.folderName}` : data.folderName;
 
     return c.json<ApiResponse>({
       success: true,
       data: {
-        folderPath: normalizedPath,
+        id: folder.id,
+        folderName: data.folderName,
+        folderPath: folderPath,
         message: 'Folder created successfully'
       }
-    });
+    }, 201);
   } catch (error) {
     console.error('Error creating folder:', error);
     return c.json<ApiResponse>({
@@ -114,7 +126,40 @@ documents.post('/folders', async (c) => {
   }
 });
 
-// GET /documents/folders/:user_id - List folders for a user
+// GET /documents/folders - OPTIMIZED: List folders and files using DynamoDB only
+documents.get('/folders', async (c) => {
+  try {
+    const user_id = c.req.query('user_id');
+    const folderPath = c.req.query('path') || '';
+
+    if (!user_id) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'user_id is required'
+      }, 400);
+    }
+
+    console.log(`[OPTIMIZED] Listing folder contents for user: ${user_id}, path: "${folderPath}"`);
+
+    // Use the new optimized folder listing method (DynamoDB only)
+    const folderContents = await documentService.listFolderContents(user_id, folderPath);
+
+    console.log(`[OPTIMIZED] Found ${folderContents.folders.length} folders and ${folderContents.files.length} files`);
+
+    return c.json<ApiResponse>({
+      success: true,
+      data: folderContents
+    });
+  } catch (error) {
+    console.error('Error listing folder contents:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: `Failed to list folder contents: ${error instanceof Error ? error.message : 'Unknown error'}`
+    }, 500);
+  }
+});
+
+// GET /documents/folders/:user_id - LEGACY: List folders for a user (S3-based - for backward compatibility)
 documents.get('/folders/:user_id', async (c) => {
   try {
     const user_id = c.req.param('user_id');
