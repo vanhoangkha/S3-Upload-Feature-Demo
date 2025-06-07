@@ -6,7 +6,8 @@ import {
   PresignedUrlResponse,
   ApiResponse,
   MultipartUploadPart,
-  UpdateDocumentRequest
+  UpdateDocumentRequest,
+  S3FolderListResponse
 } from '../types';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
@@ -20,12 +21,13 @@ const api = axios.create({
 
 export class DocumentService {
   // Generate presigned URLs for file upload
-  static async getPresignedUrl(fileName: string, mimeType: string, userId: string, fileSize?: number): Promise<PresignedUrlResponse> {
+  static async getPresignedUrl(fileName: string, mimeType: string, userId: string, fileSize?: number, folderPath?: string): Promise<PresignedUrlResponse> {
     const response = await api.post<ApiResponse<PresignedUrlResponse>>('/documents/presigned-url', {
       fileName,
       mimeType,
       user_id: userId,
       fileSize,
+      folderPath,
     });
 
     if (!response.data.success || !response.data.data) {
@@ -104,7 +106,8 @@ export class DocumentService {
         file.name,
         file.type,
         documentData.user_id,
-        file.size
+        file.size,
+        documentData.folderPath
       );
 
       // Step 2: Upload file to S3 (handles both simple and multipart automatically)
@@ -196,6 +199,37 @@ export class DocumentService {
     if (!response.data.success) {
       throw new Error(response.data.error || 'Failed to delete document');
     }
+  }
+
+  // Create folder
+  static async createFolder(userId: string, folderPath: string): Promise<{ folderPath: string; message: string }> {
+    const response = await api.post<ApiResponse<{ folderPath: string; message: string }>>('/documents/folders', {
+      folderPath,
+      user_id: userId,
+    });
+
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to create folder');
+    }
+
+    return response.data.data;
+  }
+
+  // List folders and files
+  static async listFolders(userId: string, folderPath?: string): Promise<S3FolderListResponse> {
+    const searchParams = new URLSearchParams();
+    if (folderPath && folderPath.trim()) {
+      searchParams.append('path', folderPath);
+    }
+
+    const url = `/documents/folders/${userId}${searchParams.toString() ? `?${searchParams}` : ''}`;
+    const response = await api.get<ApiResponse<S3FolderListResponse>>(url);
+
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to list folders');
+    }
+
+    return response.data.data;
   }
 
   // Check API health

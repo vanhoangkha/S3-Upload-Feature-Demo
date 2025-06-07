@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { DocumentService } from '../services/document-service';
 import { S3Service } from '../services/s3-service';
 import { CreateDocumentRequest, UpdateDocumentRequest, ApiResponse } from '../types';
+import { S3FolderItem, S3FolderListResponse } from '../types/folder';
 
 const documents = new Hono();
 const documentService = new DocumentService();
@@ -48,6 +49,153 @@ documents.get('/', async (c) => {
   }
 });
 
+// POST /documents/folders - Create a new folder
+documents.post('/folders', async (c) => {
+  try {
+    const { folderPath, user_id } = await c.req.json();
+
+    if (!folderPath || !user_id) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'folderPath and user_id are required'
+      }, 400);
+    }
+
+    // Validate folder path (no special characters except spaces, hyphens, underscores, slashes)
+    const folderPathRegex = /^[a-zA-Z0-9\s\-_/]+$/;
+    if (!folderPathRegex.test(folderPath)) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Folder path can only contain letters, numbers, spaces, hyphens, underscores, and forward slashes'
+      }, 400);
+    }
+
+    // Normalize the folder path
+    const normalizedPath = folderPath.trim().replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
+
+    // Create S3 key for folder metadata
+    const folderKey = `protected/${user_id}/${normalizedPath}/.folder_metadata`;
+
+    // Check if folder already exists
+    const exists = await s3Service.checkObjectExists(folderKey);
+    if (exists) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Folder already exists'
+      }, 409);
+    }
+
+    // Create folder metadata
+    const folderMetadata = {
+      type: 'folder',
+      name: normalizedPath.split('/').pop(),
+      path: normalizedPath,
+      createdAt: new Date().toISOString(),
+      createdBy: user_id,
+      version: '1.0'
+    };
+
+    // Upload folder metadata to S3
+    await s3Service.uploadObject(folderKey, JSON.stringify(folderMetadata), 'application/json');
+
+    return c.json<ApiResponse>({
+      success: true,
+      data: {
+        folderPath: normalizedPath,
+        message: 'Folder created successfully'
+      }
+    });
+  } catch (error) {
+    console.error('Error creating folder:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to create folder'
+    }, 500);
+  }
+});
+
+// GET /documents/folders/:user_id - List folders for a user
+documents.get('/folders/:user_id', async (c) => {
+  try {
+    const user_id = c.req.param('user_id');
+    const folderPath = c.req.query('path') || '';
+
+    console.log(`Listing folders for user: ${user_id}, path: ${folderPath}`);
+
+    if (!user_id) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'user_id is required'
+      }, 400);
+    }
+
+    // Build S3 prefix for the user's folder structure
+    let prefix = `protected/${user_id}/`;
+    if (folderPath && folderPath.trim()) {
+      const normalizedPath = folderPath.trim().replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
+      prefix += `${normalizedPath}/`;
+    }
+
+    console.log(`S3 prefix: ${prefix}`);
+
+    // List all objects under this prefix
+    const objects = await s3Service.listObjects(prefix, 1000);
+    console.log(`Found ${objects.length} objects in S3`);
+
+    // Extract folders and files from the S3 objects
+    const folders = new Set<string>();
+    const files: any[] = [];
+
+    objects.forEach(obj => {
+      if (!obj.key) return;
+
+      const keyAfterPrefix = obj.key.substring(prefix.length);
+      if (!keyAfterPrefix) return;
+
+      const pathParts = keyAfterPrefix.split('/');
+
+      if (pathParts.length === 1) {
+        // This is a file directly in the current folder
+        if (!pathParts[0].startsWith('.folder_')) {
+          files.push({
+            name: pathParts[0],
+            type: 'file',
+            size: obj.size,
+            lastModified: obj.lastModified,
+            s3Key: obj.key
+          });
+        }
+      } else if (pathParts.length > 1) {
+        // This indicates a subfolder
+        folders.add(pathParts[0]);
+      }
+    });
+
+    const folderList: S3FolderItem[] = Array.from(folders).map(folderName => ({
+      name: folderName,
+      type: 'folder',
+      path: folderPath ? `${folderPath}/${folderName}` : folderName
+    }));
+
+    console.log(`Returning ${folderList.length} folders and ${files.length} files`);
+
+    return c.json<ApiResponse<S3FolderListResponse>>({
+      success: true,
+      data: {
+        currentPath: folderPath,
+        folders: folderList.sort((a, b) => a.name.localeCompare(b.name)),
+        files: files.sort((a, b) => a.name.localeCompare(b.name))
+      }
+    });
+  } catch (error) {
+    console.error('Error listing folders:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: `Failed to list folders: ${error instanceof Error ? error.message : 'Unknown error'}`
+    }, 500);
+  }
+});
+
 // GET /documents/:user_id/:file - Get a specific document
 documents.get('/:user_id/:file', async (c) => {
   try {
@@ -78,7 +226,7 @@ documents.get('/:user_id/:file', async (c) => {
 // POST /documents/presigned-url - Generate presigned URLs for upload
 documents.post('/presigned-url', async (c) => {
   try {
-    const { fileName, mimeType, user_id, fileSize } = await c.req.json();
+    const { fileName, mimeType, user_id, fileSize, folderPath } = await c.req.json();
 
     if (!fileName || !mimeType || !user_id) {
       return c.json<ApiResponse>({
@@ -87,7 +235,7 @@ documents.post('/presigned-url', async (c) => {
       }, 400);
     }
 
-    const presignedUrls = await s3Service.generatePresignedUrls(fileName, mimeType, user_id, fileSize);
+    const presignedUrls = await s3Service.generatePresignedUrls(fileName, mimeType, user_id, fileSize, folderPath);
 
     return c.json<ApiResponse>({
       success: true,

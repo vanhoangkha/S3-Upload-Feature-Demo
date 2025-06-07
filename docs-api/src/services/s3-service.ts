@@ -7,7 +7,8 @@ import {
   UploadPartCommand,
   CompleteMultipartUploadCommand,
   AbortMultipartUploadCommand,
-  ListPartsCommand
+  ListPartsCommand,
+  ListObjectsV2Command
 } from '@aws-sdk/client-s3';
 import { s3Client, config } from '../utils/aws-config';
 import {
@@ -31,10 +32,20 @@ export class S3Service {
     fileName: string,
     mimeType: string,
     user_id: string,
-    fileSize?: number
+    fileSize?: number,
+    folderPath?: string
   ): Promise<MultipartUploadResponse> {
-    // Use the format: protected/user_id/filename (following your example)
-    const s3Key = `protected/${user_id}/${fileName}`;
+    // Use the format: protected/user_id/[folderPath/]filename
+    // If folderPath is provided, include it in the S3 key
+    let s3Key = `protected/${user_id}/`;
+    if (folderPath && folderPath.trim()) {
+      // Ensure folder path doesn't start or end with slashes and normalize it
+      const normalizedPath = folderPath.trim().replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
+      if (normalizedPath) {
+        s3Key += `${normalizedPath}/`;
+      }
+    }
+    s3Key += fileName;
 
     // Determine if we should use multipart upload
     const useMultipart = fileSize && fileSize > this.MULTIPART_THRESHOLD;
@@ -224,6 +235,41 @@ export class S3Service {
       return true;
     } catch (error) {
       return false;
+    }
+  }
+
+  // Method to upload an object directly to S3 (for small files like folder metadata)
+  async uploadObject(key: string, body: string, contentType: string = 'text/plain'): Promise<void> {
+    const command = new PutObjectCommand({
+      Bucket: config.documentStoreBucketName,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    });
+
+    await s3Client.send(command);
+  }
+
+  // List objects in S3 bucket with a specific prefix (useful for folder detection)
+  async listObjects(prefix: string, maxKeys: number = 1000): Promise<any[]> {
+    try {
+      const command = new ListObjectsV2Command({
+        Bucket: config.documentStoreBucketName,
+        Prefix: prefix,
+        MaxKeys: maxKeys,
+      });
+
+      const response = await s3Client.send(command);
+
+      return response.Contents?.map(object => ({
+        key: object.Key,
+        lastModified: object.LastModified,
+        size: object.Size,
+        etag: object.ETag
+      })) || [];
+    } catch (error) {
+      console.error('Error listing S3 objects:', error);
+      return [];
     }
   }
 }

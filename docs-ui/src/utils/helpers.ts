@@ -65,3 +65,91 @@ export const validateFile = (file: File): { valid: boolean; error?: string } => 
 
   return { valid: true };
 };
+
+export const extractFolderPathFromS3Key = (s3Key: string, userId: string): string => {
+  // S3 key format: protected/{user_id}/[folderPath/]filename
+  const prefix = `protected/${userId}/`;
+  if (!s3Key.startsWith(prefix)) return '';
+
+  const pathAfterPrefix = s3Key.substring(prefix.length);
+  const lastSlashIndex = pathAfterPrefix.lastIndexOf('/');
+
+  if (lastSlashIndex === -1) return ''; // File is in root
+  return pathAfterPrefix.substring(0, lastSlashIndex);
+};
+
+export const getFolderStructure = (documents: any[], currentFolderPath: string = ''): any => {
+  const folders = new Set<string>();
+  const files: any[] = [];
+
+  documents.forEach(doc => {
+    // Skip folder metadata files
+    if (doc.file === '.folder_metadata' || doc.file === '.folder_placeholder') return;
+
+    const folderPath = extractFolderPathFromS3Key(doc.s3Key, doc.user_id);
+
+    if (currentFolderPath === '') {
+      // We're in root directory
+      if (folderPath === '') {
+        // File is directly in root
+        files.push({
+          name: doc.file,
+          path: '',
+          type: 'file',
+          document: doc
+        });
+      } else {
+        // File is in a subfolder, show the top-level folder
+        const topLevelFolder = folderPath.split('/')[0];
+        folders.add(topLevelFolder);
+      }
+    } else {
+      // We're in a specific folder
+      if (folderPath === currentFolderPath) {
+        // File is directly in current folder
+        files.push({
+          name: doc.file,
+          path: currentFolderPath,
+          type: 'file',
+          document: doc
+        });
+      } else if (folderPath.startsWith(currentFolderPath + '/')) {
+        // File is in a subfolder of current folder
+        const remainingPath = folderPath.substring(currentFolderPath.length + 1);
+        const nextFolderName = remainingPath.split('/')[0];
+        const nextFolderPath = `${currentFolderPath}/${nextFolderName}`;
+        folders.add(nextFolderPath);
+      }
+    }
+  });
+
+  const folderItems = Array.from(folders).map(folderPath => {
+    const folderName = folderPath.split('/').pop() || '';
+    return {
+      name: folderName,
+      path: folderPath,
+      type: 'folder' as const
+    };
+  });
+
+  return {
+    currentPath: currentFolderPath,
+    folders: folderItems.sort((a, b) => a.name.localeCompare(b.name)),
+    files: files.sort((a, b) => a.name.localeCompare(b.name))
+  };
+};
+
+export const getBreadcrumbs = (currentPath: string): Array<{ name: string, path: string }> => {
+  if (!currentPath) return [{ name: '🏠 My Documents', path: '' }];
+
+  const parts = currentPath.split('/');
+  const breadcrumbs = [{ name: '🏠 My Documents', path: '' }];
+
+  let path = '';
+  parts.forEach(part => {
+    path = path ? `${path}/${part}` : part;
+    breadcrumbs.push({ name: part, path });
+  });
+
+  return breadcrumbs;
+};

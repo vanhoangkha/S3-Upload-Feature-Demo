@@ -23,6 +23,7 @@ export const UploadPage: React.FC = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [folderPath, setFolderPath] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState('');
@@ -75,6 +76,7 @@ export const UploadPage: React.FC = () => {
           title: documentTitle,
           description,
           user_id: currentUserId,
+          folderPath: folderPath.trim() || undefined,
         },
         (progress) => {
           // Update progress for this file within the overall progress
@@ -115,6 +117,7 @@ export const UploadPage: React.FC = () => {
       setFiles([]);
       setTitle('');
       setDescription('');
+      setFolderPath('');
       setUploadProgress(0);
 
       // Navigate to documents page after a short delay
@@ -233,6 +236,18 @@ export const UploadPage: React.FC = () => {
                 value={title}
                 onChange={({ detail }) => setTitle(detail.value)}
                 placeholder="Enter document title..."
+                disabled={uploading}
+              />
+            </FormField>
+
+            <FormField
+              label="Folder Path"
+              description="Optional folder path (e.g., Projects/Reports/2025). Leave empty to upload to root directory."
+            >
+              <Input
+                value={folderPath}
+                onChange={({ detail }) => setFolderPath(detail.value)}
+                placeholder="e.g., Projects/Reports/2025"
                 disabled={uploading}
               />
             </FormField>

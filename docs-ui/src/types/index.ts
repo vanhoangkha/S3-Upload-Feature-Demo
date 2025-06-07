@@ -79,10 +79,39 @@ export interface DocumentFormData {
   mimeType: string;
   user_id: string;
   s3Key: string;
+  folderPath?: string;
 }
 
 export interface DocumentListParams {
   user_id?: string;
   limit?: number;
   nextToken?: string;
+}
+
+export interface FolderItem {
+  name: string;
+  path: string;
+  type: 'folder' | 'file';
+  document?: Document;
+}
+
+export interface FolderStructure {
+  currentPath: string;
+  folders: FolderItem[];
+  files: FolderItem[];
+}
+
+export interface S3FolderItem {
+  name: string;
+  type: 'folder' | 'file';
+  path?: string;
+  size?: number;
+  lastModified?: string;
+  s3Key?: string;
+}
+
+export interface S3FolderListResponse {
+  currentPath: string;
+  folders: S3FolderItem[];
+  files: S3FolderItem[];
 }
