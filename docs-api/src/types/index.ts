@@ -31,6 +31,46 @@ export interface PresignedUrlResponse {
   uploadUrl: string;
   downloadUrl: string;
   s3Key: string;
+  uploadType: 'simple' | 'multipart';
+}
+
+export interface MultipartUploadInitResponse {
+  uploadId: string;
+  s3Key: string;
+  parts: MultipartUploadPart[];
+  uploadType: 'multipart';
+}
+
+export interface MultipartUploadPart {
+  partNumber: number;
+  uploadUrl: string;
+}
+
+export interface MultipartUploadResponse {
+  uploadUrl?: string;
+  downloadUrl: string;
+  s3Key: string;
+  uploadType: 'simple' | 'multipart';
+  uploadId?: string;
+  parts?: MultipartUploadPart[];
+}
+
+export interface CompleteMultipartUploadRequest {
+  uploadId: string;
+  s3Key: string;
+  parts: CompletedPart[];
+}
+
+export interface CompletedPart {
+  partNumber: number;
+  etag: string;
+}
+
+export interface UploadStatusResponse {
+  status: 'pending' | 'completed' | 'failed' | 'aborted';
+  uploadId?: string;
+  s3Key: string;
+  completedParts?: CompletedPart[];
 }
 
 export interface ListDocumentsResponse {

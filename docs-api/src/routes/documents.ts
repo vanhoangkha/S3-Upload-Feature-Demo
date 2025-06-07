@@ -78,7 +78,7 @@ documents.get('/:user_id/:file', async (c) => {
 // POST /documents/presigned-url - Generate presigned URLs for upload
 documents.post('/presigned-url', async (c) => {
   try {
-    const { fileName, mimeType, user_id } = await c.req.json();
+    const { fileName, mimeType, user_id, fileSize } = await c.req.json();
 
     if (!fileName || !mimeType || !user_id) {
       return c.json<ApiResponse>({
@@ -87,7 +87,7 @@ documents.post('/presigned-url', async (c) => {
       }, 400);
     }
 
-    const presignedUrls = await s3Service.generatePresignedUrls(fileName, mimeType, user_id);
+    const presignedUrls = await s3Service.generatePresignedUrls(fileName, mimeType, user_id, fileSize);
 
     return c.json<ApiResponse>({
       success: true,
@@ -102,21 +102,29 @@ documents.post('/presigned-url', async (c) => {
   }
 });
 
-// POST /documents - Create a new document record
+// POST /documents - Create a new document record after upload
 documents.post('/', async (c) => {
   try {
     const data: CreateDocumentRequest & { s3Key: string } = await c.req.json();
 
-    if (!data.title || !data.fileName || !data.s3Key || !data.mimeType || !data.user_id) {
+    if (!data.title || !data.fileName || !data.s3Key || !data.mimeType || !data.user_id || !data.fileSize) {
       return c.json<ApiResponse>({
         success: false,
-        error: 'title, fileName, s3Key, mimeType, and user_id are required'
+        error: 'title, fileName, s3Key, mimeType, user_id, and fileSize are required'
       }, 400);
     }
 
-    // TODO: Get user from authentication context and verify user_id matches
-    const uploadedBy = data.user_id; // For now, use user_id as uploadedBy
+    // Check if the file actually exists in S3
+    const exists = await s3Service.checkObjectExists(data.s3Key);
 
+    if (!exists) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'File not found in S3. Please upload the file first.'
+      }, 400);
+    }
+
+    const uploadedBy = data.user_id; // For now, use user_id as uploadedBy
     const document = await documentService.createDocument({
       ...data,
       uploadedBy

@@ -84,11 +84,6 @@ export const DocumentDetailPage: React.FC = () => {
       const updatedDoc = await DocumentService.updateDocument(userId, fileName, {
         title: editTitle,
         description: editDescription,
-        fileName: document.fileName,
-        fileSize: document.fileSize,
-        mimeType: document.mimeType,
-        user_id: document.user_id,
-        s3Key: document.s3Key,
       });
 
       setDocument(updatedDoc);
@@ -286,7 +281,7 @@ export const DocumentDetailPage: React.FC = () => {
                   <Box variant="awsui-key-label">File</Box>
                   <SpaceBetween direction="horizontal" size="s" alignItems="center">
                     <Box fontSize="heading-l">{getFileIcon(document.mimeType)}</Box>
-                    <Box variant="span">{document.fileName}</Box>
+                    <Box variant="span">{document.file}</Box>
                   </SpaceBetween>
                 </Box>
 
@@ -309,12 +304,12 @@ export const DocumentDetailPage: React.FC = () => {
 
                 <Box>
                   <Box variant="awsui-key-label">Upload Date</Box>
-                  <Box variant="span">{formatDate(document.uploadDate)}</Box>
+                  <Box variant="span">{formatDate(document.createdAt)}</Box>
                 </Box>
 
                 <Box>
                   <Box variant="awsui-key-label">Last Modified</Box>
-                  <Box variant="span">{formatDate(document.lastModified)}</Box>
+                  <Box variant="span">{formatDate(document.updatedAt)}</Box>
                 </Box>
 
                 <Box>

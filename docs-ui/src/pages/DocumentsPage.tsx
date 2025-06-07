@@ -82,7 +82,7 @@ export const DocumentsPage: React.FC = () => {
 
   const filteredDocuments = documents.filter(doc =>
     doc.title.toLowerCase().includes(filteringText.toLowerCase()) ||
-    doc.fileName.toLowerCase().includes(filteringText.toLowerCase())
+    doc.file.toLowerCase().includes(filteringText.toLowerCase())
   );
 
   const columnDefinitions = [
@@ -113,8 +113,8 @@ export const DocumentsPage: React.FC = () => {
     {
       id: 'fileName',
       header: 'File Name',
-      cell: (item: Document) => item.fileName,
-      sortingField: 'fileName',
+      cell: (item: Document) => item.file,
+      sortingField: 'file',
     },
     {
       id: 'fileSize',
@@ -123,10 +123,10 @@ export const DocumentsPage: React.FC = () => {
       sortingField: 'fileSize',
     },
     {
-      id: 'uploadDate',
+      id: 'createdAt',
       header: 'Upload Date',
-      cell: (item: Document) => formatDate(item.uploadDate),
-      sortingField: 'uploadDate',
+      cell: (item: Document) => formatDate(item.createdAt),
+      sortingField: 'createdAt',
     },
     {
       id: 'actions',

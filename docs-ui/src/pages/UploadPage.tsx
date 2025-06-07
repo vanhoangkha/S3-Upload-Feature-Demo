@@ -15,7 +15,6 @@ import {
   FileUploadProps,
 } from '@cloudscape-design/components';
 import { useNavigate } from 'react-router-dom';
-import { v4 as uuidv4 } from 'uuid';
 import { DocumentService } from '../services/documentService';
 import { validateFile } from '../utils/helpers';
 
@@ -67,36 +66,32 @@ export const UploadPage: React.FC = () => {
 
   const uploadSingleFile = async (file: File, index: number, total: number) => {
     try {
-      // Generate unique filename
-      const fileExtension = file.name.substring(file.name.lastIndexOf('.'));
-      const uniqueFileName = `${uuidv4()}${fileExtension}`;
-
-      // Get presigned URL
-      const presignedData = await DocumentService.getPresignedUrl(
-        uniqueFileName,
-        file.type,
-        currentUserId
-      );
-
-      // Upload to S3
-      await DocumentService.uploadFileToS3(file, presignedData.uploadUrl);
-
-      // Create document record
       const documentTitle = total === 1 ? title : `${title} (${index + 1})`;
-      await DocumentService.createDocument({
-        title: documentTitle,
-        description,
-        fileName: file.name,
-        fileSize: file.size,
-        mimeType: file.type,
-        user_id: currentUserId,
-        s3Key: presignedData.s3Key,
-      });
+
+      // Use the unified upload method that handles both simple and multipart uploads
+      await DocumentService.uploadDocument(
+        file,
+        {
+          title: documentTitle,
+          description,
+          user_id: currentUserId,
+        },
+        (progress) => {
+          // Update progress for this file within the overall progress
+          const fileProgress = (index / total) * 100 + (progress / total);
+          setUploadProgress(fileProgress);
+        }
+      );
 
       setUploadProgress(((index + 1) / total) * 100);
     } catch (err) {
       throw new Error(`Failed to upload "${file.name}": ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
+  };
+
+  const handleFormSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    handleSubmit();
   };
 
   const handleSubmit = async () => {
@@ -177,7 +172,7 @@ export const UploadPage: React.FC = () => {
         </Alert>
       )}
 
-      <form>
+      <form onSubmit={handleFormSubmit}>
         <Form
           actions={
             <SpaceBetween direction="horizontal" size="xs">
@@ -212,7 +207,6 @@ export const UploadPage: React.FC = () => {
                 accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
                 showFileLastModified
                 showFileSize
-                showFileThumbnail
                 constraintText="Supported formats: Images, PDF, Word, Excel, Text files. Max 100MB per file."
                 i18nStrings={{
                   uploadButtonText: (multiple) =>
