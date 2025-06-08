@@ -1,177 +1,141 @@
-# S3 Upload Feature Demo
+# Documentation System Setup Guide
 
-A demonstration project showcasing how to implement secure file uploads to Amazon S3 using modern web technologies.
-
-## Overview
-
-This project provides a complete implementation of a file upload system using AWS S3 for storage. It demonstrates best practices for secure direct uploads to S3 from web browsers, including pre-signed URLs, proper access control, and client-side validation.
-
-## Features
-
-- Direct browser-to-S3 uploads using pre-signed URLs
-- Support for multiple file types and size validation
-- Progress tracking for uploads
-- Serverless backend using AWS Lambda and API Gateway
-- Secure access control with IAM policies
-- Configurable file retention policies
-- Thumbnail generation for image uploads
-- Responsive UI for both desktop and mobile devices
-
-## Architecture
-
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│             │     │             │     │             │
-│  Web Client │────▶│ API Gateway │────▶│   Lambda    │
-│             │     │             │     │             │
-└─────────────┘     └─────────────┘     └─────────────┘
-       │                                       │
-       │                                       │
-       │                                       ▼
-       │                               ┌─────────────┐
-       │                               │             │
-       └──────────────────────────────▶│     S3      │
-                                       │             │
-                                       └─────────────┘
-```
+This guide explains how to run both the documentation API (docs-api) and documentation UI (docs-ui) components of the S3 Upload Feature Demo project.
 
 ## Prerequisites
 
-- AWS Account
+Before starting, ensure you have:
+
 - Node.js (v14 or later)
 - AWS CLI configured with appropriate permissions
-- Git
+- npm or yarn package manager
 
-## Installation
+## Running the Documentation API (docs-api)
 
-1. Clone the repository:
-   ```
-   git clone https://github.com/vanhoangkha/S3-Upload-Feature-Demo.git
-   cd S3-Upload-Feature-Demo
+The docs-api component serves as the backend for the documentation system, providing API endpoints for the documentation UI.
+
+### Installation
+
+1. Navigate to the docs-api directory:
+   ```bash
+   cd backend/docs-api
    ```
 
 2. Install dependencies:
-   ```
+   ```bash
    npm install
    ```
 
-3. Configure AWS credentials:
+3. Configure environment variables:
+   Create a `.env` file in the docs-api directory with the following variables:
    ```
-   aws configure
+   PORT=3001
+   AWS_REGION=us-east-1
+   S3_BUCKET_NAME=your-docs-bucket-name
+   API_KEY=your-api-key-for-security
    ```
 
-4. Deploy the backend infrastructure:
-   ```
-   npm run deploy
-   ```
+### Running in Development Mode
 
-## Configuration
-
-Create a `.env` file in the project root with the following variables:
-
-```
-S3_BUCKET_NAME=your-bucket-name
-REGION=us-east-1
-MAX_FILE_SIZE=10485760  # 10MB in bytes
-ALLOWED_FILE_TYPES=image/jpeg,image/png,application/pdf
+```bash
+npm run dev
 ```
 
-## Usage
+This will start the docs-api server in development mode with hot reloading enabled.
 
-1. Start the development server:
+### Running in Production Mode
+
+1. Build the application:
+   ```bash
+   npm run build
    ```
-   npm run dev
+
+2. Start the server:
+   ```bash
+   npm start
    ```
 
-2. Open your browser and navigate to `http://localhost:3000`
+## Running the Documentation UI (docs-ui)
 
-3. Use the upload interface to select and upload files to S3
+The docs-ui component provides a user-friendly interface for browsing and searching documentation.
+
+### Installation
+
+1. Navigate to the docs-ui directory:
+   ```bash
+   cd frontend/docs-ui
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Configure environment variables:
+   Create a `.env` file in the docs-ui directory with the following variables:
+   ```
+   VITE_API_URL=http://localhost:3001/api
+   VITE_APP_TITLE=S3 Upload Feature Documentation
+   ```
+
+### Running in Development Mode
+
+```bash
+npm run dev
+```
+
+This will start the development server, typically on port 3000. Open your browser and navigate to `http://localhost:3000` to view the documentation UI.
+
+### Building for Production
+
+```bash
+npm run build
+```
+
+This will create a production-ready build in the `dist` directory.
+
+### Serving the Production Build
+
+```bash
+npm run preview
+```
+
+This will serve the production build locally for testing.
+
+## Running Both Components Together
+
+For convenience, you can use the following commands from the project root to run both components simultaneously:
+
+1. Install dependencies for both components:
+   ```bash
+   npm run install:all
+   ```
+
+2. Start both services in development mode:
+   ```bash
+   npm run start:docs
+   ```
 
 ## API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/presigned-url` | POST | Generate a pre-signed URL for S3 upload |
-| `/api/files` | GET | List all uploaded files |
-| `/api/files/{fileId}` | GET | Get details of a specific file |
-| `/api/files/{fileId}` | DELETE | Delete a file from S3 |
+| `/api/docs` | GET | List all available documentation |
+| `/api/docs/:id` | GET | Get specific documentation by ID |
+| `/api/docs/search` | GET | Search documentation by keyword |
 
-## Security Considerations
+## Troubleshooting
 
-- All uploads use pre-signed URLs with limited time validity
-- CORS is properly configured on the S3 bucket
-- File type validation occurs on both client and server
-- IAM policies follow the principle of least privilege
-- All data is encrypted at rest using S3 server-side encryption
+### Common Issues
 
-## Development
+1. **API Connection Error**:
+   - Ensure the docs-api server is running
+   - Check that the VITE_API_URL in docs-ui .env file matches the docs-api server address
+   - Verify network connectivity between the services
 
-### Project Structure
+2. **Missing Documentation**:
+   - Confirm that the S3 bucket specified in docs-api .env exists and contains documentation files
+   - Check AWS credentials have proper permissions to access the bucket
 
-```
-├── backend/
-│   ├── functions/
-│   │   ├── generatePresignedUrl.js
-│   │   ├── listFiles.js
-│   │   └── deleteFile.js
-│   └── serverless.yml
-├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── components/
-│   │   ├── hooks/
-│   │   ├── services/
-│   │   └── App.js
-│   └── package.json
-└── README.md
-```
-
-### Local Development
-
-For local development with mock S3:
-
-```
-npm run dev:mock
-```
-
-This uses a local mock of S3 for development without requiring AWS credentials.
-
-## Deployment
-
-### Development Environment
-
-```
-npm run deploy:dev
-```
-
-### Production Environment
-
-```
-npm run deploy:prod
-```
-
-## Testing
-
-Run the test suite:
-
-```
-npm test
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- AWS Documentation for S3 and Lambda
-- The serverless framework community
-- All contributors to this project
+3. **CORS Issues**:
+   - If accessing the UI from a different domain than the API, ensure CORS is properly configured in the docs-api server
