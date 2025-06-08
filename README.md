@@ -18,6 +18,41 @@ The system consists of two main components:
    - Features responsive design for desktop and mobile devices
    - Includes document upload with progress tracking
 
+## Key Features
+
+### Vendor-Based Bucket Structure
+- Each vendor has a dedicated folder within the S3 bucket
+- Hierarchical organization for better document management
+- Logical separation of vendor documents for improved security and organization
+
+### Role-Based Access Control Matrix
+- **Vendor Role**: Limited access to their own folder only
+  - Can upload, download, and view their own documents
+  - Cannot access other vendors' documents
+  - Limited visibility within the UI
+- **Admin Role**: Full access to all vendor folders
+  - Complete management of all documents across vendors
+  - Can perform administrative operations
+  - Full visibility of the entire document hierarchy
+
+### File Operations with Permission Controls
+- **Upload**: Controlled by role permissions
+- **Download**: Access restricted based on user role
+- **Delete**: Limited to authorized users based on role
+- All operations respect the permission boundaries
+
+### Tree View User Interface
+- Hierarchical display of folders and documents
+- Intuitive navigation through the vendor folder structure
+- Expandable/collapsible folders for better organization
+- Visual indicators for document types and permissions
+
+### Optional: Cross-Account Synchronization
+- Ability to sync documents across different AWS accounts
+- Maintain consistent document versions across environments
+- Secure transfer mechanisms between accounts
+- Configurable sync schedules and policies
+
 ## Prerequisites
 
 Before starting, ensure you have:
@@ -85,6 +120,9 @@ This will start the docs-api server in development mode with hot reloading enabl
 | `/api/documents/:user_id/:file` | GET | Get document metadata |
 | `/api/documents/:user_id/:file/download` | GET | Get document download URL |
 | `/api/documents/:user_id/:file` | DELETE | Delete a document |
+| `/api/vendors` | GET | List all vendors |
+| `/api/vendors/:vendor_id/documents` | GET | List documents for a specific vendor |
+| `/api/roles` | GET | Get user role information |
 
 ### Building for Production
 
@@ -125,6 +163,9 @@ npm start
    
    # Default User (for demo purposes)
    REACT_APP_DEFAULT_USER_ID=demo-user
+   
+   # Default Role (admin or vendor)
+   REACT_APP_DEFAULT_ROLE=admin
    ```
 
 ### Running in Development Mode
@@ -139,8 +180,10 @@ This will start the development server on port 3000. Open your browser and navig
 
 | Route | Description |
 |-------|-------------|
-| `/documents` | Main document listing page |
+| `/documents` | Main document listing page with tree view |
 | `/upload` | Document upload page |
+| `/vendors` | Vendor management (admin only) |
+| `/settings` | User settings and preferences |
 
 ### Building for Production
 
@@ -182,9 +225,15 @@ For convenience, you can use the following commands from the project root:
    - Ensure the frontend origin is listed in the ALLOWED_ORIGINS environment variable in docs-api
    - Check browser console for CORS-related errors
 
-4. **DynamoDB Connection Issues**:
-   - Verify the DynamoDB tables exist in the specified AWS region
-   - Check that AWS credentials have proper permissions to access DynamoDB
+4. **Permission Errors**:
+   - Verify user role assignments in the database
+   - Check IAM policies for proper S3 and DynamoDB access
+   - Ensure bucket policies allow the necessary operations
+
+5. **Tree View Display Issues**:
+   - Clear browser cache if tree structure doesn't update
+   - Check network requests for proper data loading
+   - Verify folder structure permissions match user role
 
 ## Technology Stack
 
@@ -192,8 +241,9 @@ For convenience, you can use the following commands from the project root:
 - HonoJS web framework
 - AWS SDK v3 for JavaScript
 - TypeScript
-- DynamoDB for document metadata
-- S3 for document storage
+- DynamoDB for document metadata and permissions
+- S3 for document storage with folder structure
+- IAM for role-based access control
 
 ### Frontend (docs-ui)
 - React 19
@@ -201,10 +251,13 @@ For convenience, you can use the following commands from the project root:
 - AWS Cloudscape Design System
 - React Router v7
 - Axios for API requests
+- Tree component for hierarchical document display
 
 ## Security Features
 
 - Presigned URLs for secure, temporary S3 access
+- Role-based access control for documents
+- Vendor isolation through folder structure
 - CORS protection
 - Environment-based configuration
 - No direct exposure of AWS credentials to the frontend
