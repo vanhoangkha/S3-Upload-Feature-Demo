@@ -16,11 +16,13 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Document, FolderItem } from '../types';
 import { DocumentService } from '../services/documentService';
+import { useAuth } from '../components/AuthProvider';
 import { formatFileSize, formatDate, getFileIcon, getBreadcrumbs, isFilePath, getFileNameFromPath, getFolderPathFromFilePath } from '../utils/helpers';
 
 export const DocumentsPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedItems, setSelectedItems] = useState<Document[]>([]);
@@ -37,7 +39,6 @@ export const DocumentsPage: React.FC = () => {
   // const [lastEvaluatedKey, setLastEvaluatedKey] = useState<string>();
 
   const pageSize = 10;
-  const currentUserId = 'demo-user'; // In a real app, this would come from authentication
 
   // Extract folder path from URL
   const getFolderPathFromUrl = useCallback(() => {
@@ -88,16 +89,21 @@ export const DocumentsPage: React.FC = () => {
 
     if (urlFolderPath !== currentFolderPath) {
       setCurrentFolderPath(urlFolderPath);
-      console.log(`Initialized folder path from URL: "${urlFolderPath}"`);
+
     }
 
     // If URL points to a file, we'll handle file viewing after documents are loaded
     if (urlFileName) {
-      console.log(`URL points to file: "${urlFileName}"`);
+
     }
   }, [getFolderPathFromUrl, getFileFromUrl, currentFolderPath]);
 
   const loadDocuments = useCallback(async () => {
+    if (!user?.idToken) {
+      setError('Authentication required');
+      return;
+    }
+
     try {
       setLoading(true);
       setError('');
@@ -106,12 +112,12 @@ export const DocumentsPage: React.FC = () => {
       setFolderStructure({ folders: [], files: [] });
       setDocuments([]);
 
-      console.log(`[OPTIMIZED] Loading folder contents for path: "${currentFolderPath}"`);
+
 
       // OPTIMIZED: Single DynamoDB-first call to get folders and files
-      const folderContents = await DocumentService.listFolderContents(currentUserId, currentFolderPath);
+      const folderContents = await DocumentService.listFolderContents(currentFolderPath, user.idToken);
 
-      console.log(`[OPTIMIZED] Loaded ${folderContents.folders.length} folders and ${folderContents.files.length} files`);
+
 
       // Convert to our existing FolderItem format
       const folders: FolderItem[] = folderContents.folders.map(folder => ({
@@ -158,7 +164,6 @@ export const DocumentsPage: React.FC = () => {
       }
 
     } catch (err) {
-      console.error('[OPTIMIZED] Error loading folder contents:', err);
       setError(err instanceof Error ? err.message : 'Failed to load documents');
       // Clear data on error to prevent showing stale data
       setFolderStructure({ folders: [], files: [] });
@@ -166,18 +171,23 @@ export const DocumentsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentFolderPath, getFileFromUrl, navigate]);
+  }, [currentFolderPath, getFileFromUrl, navigate, user]);
 
   useEffect(() => {
     loadDocuments();
   }, [loadDocuments]);
 
   const handleDeleteSelected = async () => {
+    if (!user?.idToken) {
+      setError('Authentication required');
+      return;
+    }
+
     try {
       setLoading(true);
 
       for (const doc of selectedItems) {
-        await DocumentService.deleteDocument(doc.user_id, doc.file);
+        await DocumentService.deleteDocument(doc.file, user.idToken);
       }
 
       setSelectedItems([]);
@@ -191,8 +201,13 @@ export const DocumentsPage: React.FC = () => {
   };
 
   const handleDownload = async (document: Document) => {
+    if (!user?.idToken) {
+      setError('Authentication required');
+      return;
+    }
+
     try {
-      const downloadUrl = await DocumentService.getDownloadUrl(document.user_id, document.file);
+      const downloadUrl = await DocumentService.getDownloadUrl(document.file, user.idToken);
       window.open(downloadUrl, '_blank');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to download document');
@@ -215,7 +230,7 @@ export const DocumentsPage: React.FC = () => {
   };
 
   const handleBreadcrumbClick = (path: string) => {
-    console.log(`Navigating to breadcrumb path: "${path}"`);
+
     const navigationPath = path ? `/documents/${path}` : '/documents';
     navigate(navigationPath);
     setCurrentPageIndex(1);
@@ -358,6 +373,11 @@ export const DocumentsPage: React.FC = () => {
   ];
 
   const handleCreateFolder = async () => {
+    if (!user?.idToken) {
+      setFolderCreationError('Authentication required');
+      return;
+    }
+
     if (!newFolderName.trim()) {
       setFolderCreationError('Folder name is required');
       return;
@@ -374,13 +394,13 @@ export const DocumentsPage: React.FC = () => {
       setLoading(true);
       setFolderCreationError('');
 
-      console.log(`[OPTIMIZED] Creating folder "${newFolderName.trim()}" in path "${currentFolderPath}"`);
+
 
       // OPTIMIZED: Use the new DynamoDB-first folder creation
       await DocumentService.createFolderOptimized(
-        currentUserId,
         newFolderName.trim(),
-        currentFolderPath || undefined
+        currentFolderPath || undefined,
+        user.idToken
       );
 
       setNewFolderName('');
@@ -562,7 +582,6 @@ export const DocumentsPage: React.FC = () => {
                   <Button
                     variant="link"
                     onClick={() => {
-                      console.log(`Breadcrumb clicked: "${breadcrumb.name}" -> path: "${breadcrumb.path}"`);
                       handleBreadcrumbClick(breadcrumb.path);
                     }}
                     ariaLabel={`Navigate to ${breadcrumb.name}`}

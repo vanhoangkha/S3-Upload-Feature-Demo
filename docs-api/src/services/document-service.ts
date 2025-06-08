@@ -1,5 +1,6 @@
 import { PutCommand, GetCommand, DeleteCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { docClient, config } from '../utils/aws-config';
+import { logger } from '../utils/logger';
 import { Document, CreateDocumentRequest, CreateFolderRequest, FolderListResponse } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -163,7 +164,7 @@ export class DocumentService {
       await docClient.send(command);
       return true;
     } catch (error) {
-      console.error('Error soft deleting document:', error);
+      logger.error('Error soft deleting document:', error);
       return false;
     }
   }
@@ -214,7 +215,7 @@ export class DocumentService {
       await Promise.all(deletePromises);
       return true;
     } catch (error) {
-      console.error('Error deleting folder:', error);
+      logger.error('Error deleting folder:', error);
       return false;
     }
   }

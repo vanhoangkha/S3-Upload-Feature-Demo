@@ -1,7 +1,7 @@
 import axios from 'axios';
 import {
   Document,
-  DocumentFormData,
+  DocumentCreateData,
   DocumentListParams,
   PresignedUrlResponse,
   ApiResponse,
@@ -11,20 +11,42 @@ import {
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
+// Create axios instance
+const createAuthenticatedApi = (token?: string) => {
+  const headers: any = {
     'Content-Type': 'application/json',
-  },
-});
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  return axios.create({
+    baseURL: API_BASE_URL,
+    headers,
+  });
+};
+
+// Default api instance for backwards compatibility
+const api = createAuthenticatedApi();
 
 export class DocumentService {
+  // Set authentication token for all subsequent requests
+  static setAuthToken(token: string) {
+    api.defaults.headers.Authorization = `Bearer ${token}`;
+  }
+
+  // Clear authentication token
+  static clearAuthToken() {
+    delete api.defaults.headers.Authorization;
+  }
+
   // Generate presigned URLs for file upload
-  static async getPresignedUrl(fileName: string, mimeType: string, userId: string, fileSize?: number, folderPath?: string): Promise<PresignedUrlResponse> {
-    const response = await api.post<ApiResponse<PresignedUrlResponse>>('/documents/presigned-url', {
+  static async getPresignedUrl(fileName: string, mimeType: string, fileSize?: number, folderPath?: string, token?: string): Promise<PresignedUrlResponse> {
+    const apiInstance = token ? createAuthenticatedApi(token) : api;
+    const response = await apiInstance.post<ApiResponse<PresignedUrlResponse>>('/presigned-url', {
       fileName,
       mimeType,
-      user_id: userId,
       fileSize,
       folderPath,
     });
@@ -96,24 +118,25 @@ export class DocumentService {
   // Complete upload process: get presigned URL, upload file, create document record
   static async uploadDocument(
     file: File,
-    documentData: Omit<DocumentFormData, 'fileName' | 'mimeType' | 'fileSize' | 's3Key'>,
-    onProgress?: (progress: number) => void
+    documentData: Omit<DocumentCreateData, 'fileName' | 'mimeType' | 'fileSize' | 's3Key'>,
+    onProgress?: (progress: number) => void,
+    token?: string
   ): Promise<Document> {
     try {
       // Step 1: Get presigned URL(s)
       const presignedResponse = await this.getPresignedUrl(
         file.name,
         file.type,
-        documentData.user_id,
         file.size,
-        documentData.folderPath
+        documentData.folderPath,
+        token
       );
 
       // Step 2: Upload file to S3 (handles both simple and multipart automatically)
       await this.uploadFileToS3(file, presignedResponse, onProgress);
 
       // Step 3: Create document record in database
-      const documentPayload = {
+      const documentPayload: DocumentCreateData = {
         ...documentData,
         fileName: file.name,
         mimeType: file.type,
@@ -121,7 +144,7 @@ export class DocumentService {
         s3Key: presignedResponse.s3Key,
       };
 
-      const document = await this.createDocument(documentPayload);
+      const document = await this.createDocument(documentPayload, token);
 
       return document;
     } catch (error) {
@@ -131,8 +154,9 @@ export class DocumentService {
   }
 
   // Create document metadata record
-  static async createDocument(documentData: DocumentFormData): Promise<Document> {
-    const response = await api.post<ApiResponse<Document>>('/documents', documentData);
+  static async createDocument(documentData: DocumentCreateData, token?: string): Promise<Document> {
+    const apiInstance = token ? createAuthenticatedApi(token) : api;
+    const response = await apiInstance.post<ApiResponse<Document>>('', documentData);
 
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to create document');
@@ -142,14 +166,14 @@ export class DocumentService {
   }
 
   // List documents
-  static async listDocuments(params: DocumentListParams = {}): Promise<{ documents: Document[]; nextToken?: string }> {
+  static async listDocuments(params: DocumentListParams = {}, token?: string): Promise<{ documents: Document[]; nextToken?: string }> {
     const searchParams = new URLSearchParams();
 
-    if (params.user_id) searchParams.append('user_id', params.user_id);
     if (params.limit) searchParams.append('limit', params.limit.toString());
     if (params.nextToken) searchParams.append('nextToken', params.nextToken);
 
-    const response = await api.get<ApiResponse<{ documents: Document[]; nextToken?: string }>>(`/documents?${searchParams}`);
+    const apiInstance = token ? createAuthenticatedApi(token) : api;
+    const response = await apiInstance.get<ApiResponse<{ documents: Document[]; nextToken?: string }>>(`?${searchParams}`);
 
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to fetch documents');
@@ -159,10 +183,11 @@ export class DocumentService {
   }
 
   // Get specific document
-  static async getDocument(userId: string, fileName: string): Promise<Document> {
+  static async getDocument(fileName: string, token?: string): Promise<Document> {
     // URL encode the fileName to handle S3 keys with forward slashes
     const encodedFileName = encodeURIComponent(fileName);
-    const response = await api.get<ApiResponse<Document>>(`/documents/${userId}/${encodedFileName}`);
+    const apiInstance = token ? createAuthenticatedApi(token) : api;
+    const response = await apiInstance.get<ApiResponse<Document>>(`/${encodedFileName}`);
 
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to fetch document');
@@ -171,13 +196,12 @@ export class DocumentService {
     return response.data.data;
   }
 
-  // Document update functionality has been removed - edit functionality is no longer supported
-
   // Get download URL
-  static async getDownloadUrl(userId: string, fileName: string): Promise<string> {
+  static async getDownloadUrl(fileName: string, token?: string): Promise<string> {
     // URL encode the fileName to handle S3 keys with forward slashes
     const encodedFileName = encodeURIComponent(fileName);
-    const response = await api.get<ApiResponse<{ downloadUrl: string }>>(`/documents/${userId}/${encodedFileName}/download`);
+    const apiInstance = token ? createAuthenticatedApi(token) : api;
+    const response = await apiInstance.get<ApiResponse<{ downloadUrl: string }>>(`/${encodedFileName}/download`);
 
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to get download URL');
@@ -187,10 +211,11 @@ export class DocumentService {
   }
 
   // Delete document
-  static async deleteDocument(userId: string, fileName: string): Promise<void> {
+  static async deleteDocument(fileName: string, token?: string): Promise<void> {
     // URL encode the fileName to handle S3 keys with forward slashes
     const encodedFileName = encodeURIComponent(fileName);
-    const response = await api.delete<ApiResponse<void>>(`/documents/${userId}/${encodedFileName}`);
+    const apiInstance = token ? createAuthenticatedApi(token) : api;
+    const response = await apiInstance.delete<ApiResponse<void>>(`/${encodedFileName}`);
 
     if (!response.data.success) {
       throw new Error(response.data.error || 'Failed to delete document');
@@ -198,19 +223,19 @@ export class DocumentService {
   }
 
   // OPTIMIZED: Create folder using DynamoDB-first approach
-  static async createFolderOptimized(userId: string, folderName: string, parentFolderPath?: string): Promise<{
+  static async createFolderOptimized(folderName: string, parentFolderPath?: string, token?: string): Promise<{
     id: string;
     folderName: string;
     folderPath: string;
     message: string;
   }> {
-    const response = await api.post<ApiResponse<{
+    const apiInstance = token ? createAuthenticatedApi(token) : api;
+    const response = await apiInstance.post<ApiResponse<{
       id: string;
       folderName: string;
       folderPath: string;
       message: string;
-    }>>('/documents/folders', {
-      user_id: userId,
+    }>>('/folders', {
       folderName,
       parentFolderPath: parentFolderPath || '',
     });
@@ -223,10 +248,10 @@ export class DocumentService {
   }
 
   // LEGACY: Create folder (S3-based - kept for backward compatibility)
-  static async createFolder(userId: string, folderPath: string): Promise<{ folderPath: string; message: string }> {
-    const response = await api.post<ApiResponse<{ folderPath: string; message: string }>>('/documents/folders', {
+  static async createFolder(folderPath: string, token?: string): Promise<{ folderPath: string; message: string }> {
+    const apiInstance = token ? createAuthenticatedApi(token) : api;
+    const response = await apiInstance.post<ApiResponse<{ folderPath: string; message: string }>>('/folders', {
       folderPath,
-      user_id: userId,
     });
 
     if (!response.data.success || !response.data.data) {
@@ -237,19 +262,19 @@ export class DocumentService {
   }
 
   // OPTIMIZED: List folders and files using DynamoDB-first approach
-  static async listFolderContents(userId: string, folderPath?: string): Promise<{
+  static async listFolderContents(folderPath?: string, token?: string): Promise<{
     folders: { name: string; path: string; type: 'folder' }[];
     files: { name: string; path: string; type: 'file'; document?: Document }[];
     currentPath: string;
   }> {
     const searchParams = new URLSearchParams();
-    searchParams.append('user_id', userId);
     if (folderPath && folderPath.trim()) {
       searchParams.append('path', folderPath);
     }
 
-    const url = `/documents/folders?${searchParams}`;
-    const response = await api.get<ApiResponse<{
+    const url = `/folders?${searchParams}`;
+    const apiInstance = token ? createAuthenticatedApi(token) : api;
+    const response = await apiInstance.get<ApiResponse<{
       folders: { name: string; path: string; type: 'folder' }[];
       files: { name: string; path: string; type: 'file'; document?: Document }[];
       currentPath: string;
@@ -263,14 +288,15 @@ export class DocumentService {
   }
 
   // LEGACY: List folders and files (S3-based - kept for backward compatibility)
-  static async listFolders(userId: string, folderPath?: string): Promise<S3FolderListResponse> {
+  static async listFolders(folderPath?: string, token?: string): Promise<S3FolderListResponse> {
     const searchParams = new URLSearchParams();
     if (folderPath && folderPath.trim()) {
       searchParams.append('path', folderPath);
     }
 
-    const url = `/documents/folders/${userId}${searchParams.toString() ? `?${searchParams}` : ''}`;
-    const response = await api.get<ApiResponse<S3FolderListResponse>>(url);
+    const url = `/folders${searchParams.toString() ? `?${searchParams}` : ''}`;
+    const apiInstance = token ? createAuthenticatedApi(token) : api;
+    const response = await apiInstance.get<ApiResponse<S3FolderListResponse>>(url);
 
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to list folders');
@@ -282,7 +308,9 @@ export class DocumentService {
   // Check API health
   static async checkHealth(): Promise<boolean> {
     try {
-      const response = await axios.get(`${API_BASE_URL.replace('/api', '')}/health`);
+      // Get base URL without the /api/documents suffix for health check
+      const healthUrl = API_BASE_URL.replace('/vib-documents-function/api/documents', '/vib-documents-function') + '/health';
+      const response = await axios.get(healthUrl);
       return response.data.success || response.status === 200;
     } catch {
       return false;

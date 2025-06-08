@@ -3,6 +3,14 @@ import { DocumentService } from '../services/document-service';
 import { S3Service } from '../services/s3-service';
 import { CreateDocumentRequest, CreateFolderRequest, ApiResponse } from '../types';
 import { S3FolderItem, S3FolderListResponse } from '../types/folder';
+import { logger } from '../utils/logger';
+import {
+  authMiddleware,
+  adminOnlyMiddleware,
+  userResourceMiddleware,
+  getCurrentUser,
+  isCurrentUserAdmin
+} from '../middleware/auth';
 
 const documents = new Hono();
 const documentService = new DocumentService();
@@ -14,6 +22,9 @@ documents.get('/', async (c) => {
     const limit = parseInt(c.req.query('limit') || '20');
     const nextToken = c.req.query('nextToken');
     const user_id = c.req.query('user_id'); // Optional: filter by user
+
+    const currentUser = getCurrentUser(c);
+    const isAdmin = isCurrentUserAdmin(c);
 
     let lastEvaluatedKey;
     if (nextToken) {
@@ -28,12 +39,31 @@ documents.get('/', async (c) => {
     }
 
     let result;
+
+    // If no user is authenticated, return empty results
+    if (!currentUser) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Authentication required'
+      }, 401);
+    }
+
     if (user_id) {
+      // Check if user can access the requested user's documents
+      if (!isAdmin && user_id !== currentUser.userId) {
+        return c.json<ApiResponse>({
+          success: false,
+          error: 'Forbidden - You can only access your own documents'
+        }, 403);
+      }
       // Get documents for specific user
       result = await documentService.getDocumentsByUserId(user_id, limit, lastEvaluatedKey);
-    } else {
-      // Get all documents (admin view)
+    } else if (isAdmin) {
+      // Admin can get all documents
       result = await documentService.listAllDocuments(limit, lastEvaluatedKey);
+    } else {
+      // Regular user gets their own documents
+      result = await documentService.getDocumentsByUserId(currentUser.userId, limit, lastEvaluatedKey);
     }
 
     return c.json<ApiResponse>({
@@ -41,7 +71,7 @@ documents.get('/', async (c) => {
       data: result
     });
   } catch (error) {
-    console.error('Error listing documents:', error);
+    logger.error('Error listing documents:', error);
     return c.json<ApiResponse>({
       success: false,
       error: 'Failed to list documents'
@@ -50,16 +80,32 @@ documents.get('/', async (c) => {
 });
 
 // POST /documents/folders - OPTIMIZED: Create a new folder (stores in DynamoDB)
-documents.post('/folders', async (c) => {
+documents.post('/folders', authMiddleware, async (c) => {
   try {
     const requestData = await c.req.json();
+    const currentUser = getCurrentUser(c);
+
+    if (!currentUser) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Authentication required'
+      }, 401);
+    }
 
     // Handle both legacy and new request formats
     let data: CreateFolderRequest;
 
     if (requestData.folderPath && requestData.user_id) {
+      // Check if user can create folders for the specified user
+      if (!isCurrentUserAdmin(c) && requestData.user_id !== currentUser.userId) {
+        return c.json<ApiResponse>({
+          success: false,
+          error: 'Forbidden - You can only create folders for yourself'
+        }, 403);
+      }
+
       // Legacy format: { folderPath: "A/B/NewFolder", user_id: "demo-user" }
-      console.log('[LEGACY] Converting old folder creation format to new format');
+
       const folderPath = requestData.folderPath;
       const pathParts = folderPath.split('/');
       const folderName = pathParts.pop(); // Get the last part as folder name
@@ -70,18 +116,28 @@ documents.post('/folders', async (c) => {
         folderName: folderName || '',
         parentPath: parentPath || undefined,
       };
-    } else if (requestData.folderName && requestData.user_id) {
-      // New format: { folderName: "NewFolder", user_id: "demo-user", parentFolderPath?: "A/B" }
-      console.log('[OPTIMIZED] Using new folder creation format');
+    } else if (requestData.folderName) {
+      // New format: { folderName: "NewFolder", parentFolderPath?: "A/B" }
+      // Use current user's ID if not specified or verify permission
+      const userId = requestData.user_id || currentUser.userId;
+
+      if (!isCurrentUserAdmin(c) && userId !== currentUser.userId) {
+        return c.json<ApiResponse>({
+          success: false,
+          error: 'Forbidden - You can only create folders for yourself'
+        }, 403);
+      }
+
+
       data = {
-        user_id: requestData.user_id,
+        user_id: userId,
         folderName: requestData.folderName,
         parentPath: requestData.parentFolderPath || undefined,
       };
     } else {
       return c.json<ApiResponse>({
         success: false,
-        error: 'Either (folderPath and user_id) or (folderName and user_id) are required'
+        error: 'folderName is required'
       }, 400);
     }
 
@@ -101,7 +157,7 @@ documents.post('/folders', async (c) => {
       }, 400);
     }
 
-    console.log(`[OPTIMIZED] Creating folder: ${data.folderName} in path: ${data.parentPath || 'root'}`);
+
 
     const folder = await documentService.createFolder(data);
 
@@ -118,7 +174,7 @@ documents.post('/folders', async (c) => {
       }
     }, 201);
   } catch (error) {
-    console.error('Error creating folder:', error);
+    logger.error('Error creating folder:', error);
     return c.json<ApiResponse>({
       success: false,
       error: 'Failed to create folder'
@@ -127,31 +183,48 @@ documents.post('/folders', async (c) => {
 });
 
 // GET /documents/folders - OPTIMIZED: List folders and files using DynamoDB only
-documents.get('/folders', async (c) => {
+documents.get('/folders', authMiddleware, async (c) => {
   try {
     const user_id = c.req.query('user_id');
     const folderPath = c.req.query('path') || '';
+    const currentUser = getCurrentUser(c);
 
-    if (!user_id) {
+    if (!currentUser) {
       return c.json<ApiResponse>({
         success: false,
-        error: 'user_id is required'
-      }, 400);
+        error: 'Authentication required'
+      }, 401);
     }
 
-    console.log(`[OPTIMIZED] Listing folder contents for user: ${user_id}, path: "${folderPath}"`);
+    // Determine which user's folder to list
+    let targetUserId: string;
+    if (user_id) {
+      // Check if user can access the requested user's folders
+      if (!isCurrentUserAdmin(c) && user_id !== currentUser.userId) {
+        return c.json<ApiResponse>({
+          success: false,
+          error: 'Forbidden - You can only access your own folders'
+        }, 403);
+      }
+      targetUserId = user_id;
+    } else {
+      // Use current user's ID if not specified
+      targetUserId = currentUser.userId;
+    }
+
+
 
     // Use the new optimized folder listing method (DynamoDB only)
-    const folderContents = await documentService.listFolderContents(user_id, folderPath);
+    const folderContents = await documentService.listFolderContents(targetUserId, folderPath);
 
-    console.log(`[OPTIMIZED] Found ${folderContents.folders.length} folders and ${folderContents.files.length} files`);
+
 
     return c.json<ApiResponse>({
       success: true,
       data: folderContents
     });
   } catch (error) {
-    console.error('Error listing folder contents:', error);
+    logger.error('Error listing folder contents:', error);
     return c.json<ApiResponse>({
       success: false,
       error: `Failed to list folder contents: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -160,12 +233,12 @@ documents.get('/folders', async (c) => {
 });
 
 // GET /documents/folders/:user_id - LEGACY: List folders for a user (S3-based - for backward compatibility)
-documents.get('/folders/:user_id', async (c) => {
+documents.get('/folders/:user_id', userResourceMiddleware, async (c) => {
   try {
     const user_id = c.req.param('user_id');
     const folderPath = c.req.query('path') || '';
 
-    console.log(`Listing folders for user: ${user_id}, path: ${folderPath}`);
+
 
     if (!user_id) {
       return c.json<ApiResponse>({
@@ -181,11 +254,11 @@ documents.get('/folders/:user_id', async (c) => {
       prefix += `${normalizedPath}/`;
     }
 
-    console.log(`S3 prefix: ${prefix}`);
+
 
     // List all objects under this prefix
     const objects = await s3Service.listObjects(prefix, 1000);
-    console.log(`Found ${objects.length} objects in S3`);
+
 
     // Extract folders and files from the S3 objects
     const folders = new Set<string>();
@@ -197,14 +270,14 @@ documents.get('/folders/:user_id', async (c) => {
       const keyAfterPrefix = obj.key.substring(prefix.length);
       if (!keyAfterPrefix) return;
 
-      console.log(`Processing object: ${obj.key}, keyAfterPrefix: ${keyAfterPrefix}`);
+
 
       const pathParts = keyAfterPrefix.split('/').filter((part: string) => part !== ''); // Remove empty parts
 
       if (pathParts.length === 1) {
         // This is a file directly in the current folder
         if (!pathParts[0].startsWith('.folder_')) {
-          console.log(`Adding file: ${pathParts[0]}`);
+
           files.push({
             name: pathParts[0],
             type: 'file',
@@ -213,12 +286,12 @@ documents.get('/folders/:user_id', async (c) => {
             s3Key: obj.key
           });
         } else {
-          console.log(`Skipping folder metadata file: ${pathParts[0]}`);
+
         }
       } else if (pathParts.length > 1) {
         // This indicates a subfolder - only add the first level folder
         const topLevelFolder = pathParts[0];
-        console.log(`Adding folder: ${topLevelFolder} (from path: ${keyAfterPrefix})`);
+
         folders.add(topLevelFolder);
       }
     });
@@ -229,7 +302,7 @@ documents.get('/folders/:user_id', async (c) => {
       path: folderPath ? `${folderPath}/${folderName}` : folderName
     }));
 
-    console.log(`Returning ${folderList.length} folders and ${files.length} files`);
+
 
     return c.json<ApiResponse<S3FolderListResponse>>({
       success: true,
@@ -240,7 +313,7 @@ documents.get('/folders/:user_id', async (c) => {
       }
     });
   } catch (error) {
-    console.error('Error listing folders:', error);
+    logger.error('Error listing folders:', error);
     return c.json<ApiResponse>({
       success: false,
       error: `Failed to list folders: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -249,7 +322,7 @@ documents.get('/folders/:user_id', async (c) => {
 });
 
 // GET /documents/:user_id/:file - Get a specific document
-documents.get('/:user_id/:file', async (c) => {
+documents.get('/:user_id/:file', userResourceMiddleware, async (c) => {
   try {
     const user_id = c.req.param('user_id');
     const encodedFile = c.req.param('file');
@@ -271,7 +344,7 @@ documents.get('/:user_id/:file', async (c) => {
       data: document
     });
   } catch (error) {
-    console.error('Error getting document:', error);
+    logger.error('Error getting document:', error);
     return c.json<ApiResponse>({
       success: false,
       error: 'Failed to get document'
@@ -280,25 +353,49 @@ documents.get('/:user_id/:file', async (c) => {
 });
 
 // POST /documents/presigned-url - Generate presigned URLs for upload
-documents.post('/presigned-url', async (c) => {
+documents.post('/presigned-url', authMiddleware, async (c) => {
   try {
     const { fileName, mimeType, user_id, fileSize, folderPath } = await c.req.json();
+    const currentUser = getCurrentUser(c);
 
-    if (!fileName || !mimeType || !user_id) {
+    if (!currentUser) {
       return c.json<ApiResponse>({
         success: false,
-        error: 'fileName, mimeType, and user_id are required'
+        error: 'Authentication required'
+      }, 401);
+    }
+
+    if (!fileName || !mimeType) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'fileName and mimeType are required'
       }, 400);
     }
 
-    const presignedUrls = await s3Service.generatePresignedUrls(fileName, mimeType, user_id, fileSize, folderPath);
+    // Determine which user the upload is for
+    let targetUserId: string;
+    if (user_id) {
+      // Check if user can upload for the specified user
+      if (!isCurrentUserAdmin(c) && user_id !== currentUser.userId) {
+        return c.json<ApiResponse>({
+          success: false,
+          error: 'Forbidden - You can only upload files for yourself'
+        }, 403);
+      }
+      targetUserId = user_id;
+    } else {
+      // Use current user's ID if not specified
+      targetUserId = currentUser.userId;
+    }
+
+    const presignedUrls = await s3Service.generatePresignedUrls(fileName, mimeType, targetUserId, fileSize, folderPath);
 
     return c.json<ApiResponse>({
       success: true,
       data: presignedUrls
     });
   } catch (error) {
-    console.error('Error generating presigned URLs:', error);
+    logger.error('Error generating presigned URLs:', error);
     return c.json<ApiResponse>({
       success: false,
       error: 'Failed to generate presigned URLs'
@@ -307,15 +404,39 @@ documents.post('/presigned-url', async (c) => {
 });
 
 // POST /documents - Create a new document record after upload
-documents.post('/', async (c) => {
+documents.post('/', authMiddleware, async (c) => {
   try {
     const data: CreateDocumentRequest & { s3Key: string } = await c.req.json();
+    const currentUser = getCurrentUser(c);
 
-    if (!data.title || !data.fileName || !data.s3Key || !data.mimeType || !data.user_id || !data.fileSize) {
+    if (!currentUser) {
       return c.json<ApiResponse>({
         success: false,
-        error: 'title, fileName, s3Key, mimeType, user_id, and fileSize are required'
+        error: 'Authentication required'
+      }, 401);
+    }
+
+    if (!data.title || !data.fileName || !data.s3Key || !data.mimeType || !data.fileSize) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'title, fileName, s3Key, mimeType, and fileSize are required'
       }, 400);
+    }
+
+    // Determine which user the document belongs to
+    let targetUserId: string;
+    if (data.user_id) {
+      // Check if user can create documents for the specified user
+      if (!isCurrentUserAdmin(c) && data.user_id !== currentUser.userId) {
+        return c.json<ApiResponse>({
+          success: false,
+          error: 'Forbidden - You can only create documents for yourself'
+        }, 403);
+      }
+      targetUserId = data.user_id;
+    } else {
+      // Use current user's ID if not specified
+      targetUserId = currentUser.userId;
     }
 
     // Check if the file actually exists in S3
@@ -328,10 +449,10 @@ documents.post('/', async (c) => {
       }, 400);
     }
 
-    const uploadedBy = data.user_id; // For now, use user_id as uploadedBy
     const document = await documentService.createDocument({
       ...data,
-      uploadedBy
+      user_id: targetUserId,
+      uploadedBy: currentUser.email || currentUser.username || currentUser.userId
     });
 
     return c.json<ApiResponse>({
@@ -339,7 +460,7 @@ documents.post('/', async (c) => {
       data: document
     }, 201);
   } catch (error) {
-    console.error('Error creating document:', error);
+    logger.error('Error creating document:', error);
     return c.json<ApiResponse>({
       success: false,
       error: 'Failed to create document'
@@ -350,7 +471,7 @@ documents.post('/', async (c) => {
 // Document update functionality removed - edit functionality is no longer supported
 
 // GET /documents/:user_id/:file/download - Get download URL for a document
-documents.get('/:user_id/:file/download', async (c) => {
+documents.get('/:user_id/:file/download', userResourceMiddleware, async (c) => {
   try {
     const user_id = c.req.param('user_id');
     const encodedFile = c.req.param('file');
@@ -374,7 +495,7 @@ documents.get('/:user_id/:file/download', async (c) => {
       data: { downloadUrl }
     });
   } catch (error) {
-    console.error('Error getting download URL:', error);
+    logger.error('Error getting download URL:', error);
     return c.json<ApiResponse>({
       success: false,
       error: 'Failed to get download URL'
@@ -383,7 +504,7 @@ documents.get('/:user_id/:file/download', async (c) => {
 });
 
 // DELETE /documents/:user_id/:file - Delete a document
-documents.delete('/:user_id/:file', async (c) => {
+documents.delete('/:user_id/:file', userResourceMiddleware, async (c) => {
   try {
     const user_id = c.req.param('user_id');
     const encodedFile = c.req.param('file');
@@ -411,7 +532,7 @@ documents.delete('/:user_id/:file', async (c) => {
       message: 'Document deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting document:', error);
+    logger.error('Error deleting document:', error);
     return c.json<ApiResponse>({
       success: false,
       error: 'Failed to delete document'

@@ -11,6 +11,7 @@ import {
   ListObjectsV2Command
 } from '@aws-sdk/client-s3';
 import { s3Client, config } from '../utils/aws-config';
+import { logger } from '../utils/logger';
 import {
   PresignedUrlResponse,
   MultipartUploadResponse,
@@ -150,7 +151,7 @@ export class S3Service {
       await s3Client.send(completeCommand);
       return true;
     } catch (error) {
-      console.error('Error completing multipart upload:', error);
+      logger.error('Error completing multipart upload:', error);
       return false;
     }
   }
@@ -166,7 +167,7 @@ export class S3Service {
       await s3Client.send(abortCommand);
       return true;
     } catch (error) {
-      console.error('Error aborting multipart upload:', error);
+      logger.error('Error aborting multipart upload:', error);
       return false;
     }
   }
@@ -193,7 +194,7 @@ export class S3Service {
         completedParts,
       };
     } catch (error) {
-      console.error('Error getting upload status:', error);
+      logger.error('Error getting upload status:', error);
       return {
         status: 'failed',
         s3Key,
@@ -222,7 +223,7 @@ export class S3Service {
       await s3Client.send(command);
       return true;
     } catch (error) {
-      console.error('Error deleting S3 object:', error);
+      logger.error('Error deleting S3 object:', error);
       return false;
     }
   }
@@ -271,7 +272,7 @@ export class S3Service {
         etag: object.ETag
       })) || [];
     } catch (error) {
-      console.error('Error listing S3 objects:', error);
+      logger.error('Error listing S3 objects:', error);
       return [];
     }
   }
@@ -318,7 +319,7 @@ export class S3Service {
       }
     } while (true);
 
-    console.log(`File versioning: "${fileName}" -> "${versionedFileName}"`);
+    logger.info(`File versioning: "${fileName}" -> "${versionedFileName}"`);
     return versionedFileName;
   }
 }

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@aws-amplify/ui-react": "^6.11.2",
     "@cloudscape-design/components": "^3.0.985",
     "@cloudscape-design/design-tokens": "^3.0.57",
     "@cloudscape-design/global-styles": "^1.0.44",
@@ -16,6 +17,7 @@
     "@types/react-dom": "^19.1.6",
     "@types/react-router-dom": "^5.3.3",
     "@types/uuid": "^10.0.0",
+    "aws-amplify": "^6.15.0",
     "axios": "^1.9.0",
     "filesize": "^10.1.6",
     "react": "^19.1.0",

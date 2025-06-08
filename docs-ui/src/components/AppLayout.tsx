@@ -6,6 +6,7 @@ import {
   SideNavigationProps,
 } from '@cloudscape-design/components';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from './AuthProvider';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -14,6 +15,7 @@ interface AppLayoutProps {
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, signOut } = useAuth();
 
   const navigationItems: SideNavigationProps.Item[] = [
     {
@@ -33,6 +35,15 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     navigate(event.detail.href);
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate('/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
   return (
     <div>
       <TopNavigation
@@ -42,9 +53,20 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         }}
         utilities={[
           {
-            type: 'button',
-            text: 'demo-user',
+            type: 'menu-dropdown',
+            text: user?.cognitoUser.email || 'User',
             iconName: 'user-profile',
+            items: [
+              {
+                id: 'signout',
+                text: 'Sign out',
+              },
+            ],
+            onItemClick: ({ detail }) => {
+              if (detail.id === 'signout') {
+                handleLogout();
+              }
+            },
           },
         ]}
       />

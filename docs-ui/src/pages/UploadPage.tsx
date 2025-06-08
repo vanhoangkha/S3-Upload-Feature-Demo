@@ -16,11 +16,13 @@ import {
 } from '@cloudscape-design/components';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { DocumentService } from '../services/documentService';
+import { useAuth } from '../components/AuthProvider';
 import { validateFile } from '../utils/helpers';
 
 export const UploadPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { user } = useAuth();
   const [files, setFiles] = useState<File[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -30,14 +32,12 @@ export const UploadPage: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const currentUserId = 'demo-user'; // In a real app, this would come from authentication
-
   // Initialize folder path from URL parameters
   useEffect(() => {
     const urlFolderPath = searchParams.get('folder');
     if (urlFolderPath) {
       setFolderPath(urlFolderPath);
-      console.log(`Initialized folder path from URL: "${urlFolderPath}"`);
+
     }
   }, [searchParams]);
 
@@ -83,6 +83,10 @@ export const UploadPage: React.FC = () => {
   };
 
   const uploadSingleFile = async (file: File, index: number, total: number) => {
+    if (!user?.idToken) {
+      throw new Error('Authentication required');
+    }
+
     try {
       const documentTitle = total === 1 ? title : `${title} (${index + 1})`;
 
@@ -92,14 +96,14 @@ export const UploadPage: React.FC = () => {
         {
           title: documentTitle,
           description,
-          user_id: currentUserId,
           folderPath: folderPath.trim() || undefined,
         },
-        (progress) => {
+        (progress: number) => {
           // Update progress for this file within the overall progress
           const fileProgress = (index / total) * 100 + (progress / total);
           setUploadProgress(fileProgress);
-        }
+        },
+        user.idToken
       );
 
       setUploadProgress(((index + 1) / total) * 100);

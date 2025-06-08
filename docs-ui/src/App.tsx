@@ -1,20 +1,53 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Amplify } from 'aws-amplify';
 import { AppLayout } from './components/AppLayout';
-import { DocumentsPage, UploadPage } from './pages';
+import { AuthProvider } from './components/AuthProvider';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { DocumentsPage, UploadPage, LoginPage, RegisterPage } from './pages';
+import awsExports from './aws-exports';
+
+// Configure Amplify
+Amplify.configure(awsExports);
 
 function App() {
   return (
-    <Router>
-      <AppLayout>
+    <AuthProvider>
+      <Router>
         <Routes>
-          <Route path="/" element={<Navigate to="/documents" replace />} />
-          <Route path="/documents" element={<DocumentsPage />} />
-          <Route path="/documents/*" element={<DocumentsPage />} />
-          <Route path="/upload" element={<UploadPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Navigate to="/documents" replace />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/documents" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <DocumentsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/documents/*" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <DocumentsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/upload" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <UploadPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
         </Routes>
-      </AppLayout>
-    </Router>
+      </Router>
+    </AuthProvider>
   );
 }
 

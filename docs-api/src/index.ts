@@ -1,21 +1,26 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
+import { logger as honoLogger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
 import { documents } from './routes/documents';
 import { ApiResponse } from './types';
 import { config } from './utils/aws-config';
+import { optionalAuthMiddleware } from './middleware/auth';
+import { logger } from './utils/logger';
 
 const app = new Hono();
 
 // Middleware
-app.use('*', logger());
+app.use('*', honoLogger());
 app.use('*', prettyJSON());
 app.use('*', cors({
   origin: config.allowedOrigins,
   allowMethods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
 }));
+
+// Add optional authentication middleware to extract user context
+app.use('*', optionalAuthMiddleware);
 
 // Health check endpoint
 app.get('/health', (c) => {
@@ -32,7 +37,7 @@ app.get('/health', (c) => {
 });
 
 // API routes
-app.route('/api/documents', documents);
+app.route('/vib-documents-function/api/documents', documents);
 
 // Root endpoint
 app.get('/', (c) => {
@@ -42,12 +47,14 @@ app.get('/', (c) => {
     data: {
       endpoints: [
         'GET /health - Health check',
-        'GET /api/documents - List documents',
-        'POST /api/documents/presigned-url - Generate presigned URLs',
-        'POST /api/documents - Create document',
-        'GET /api/documents/:user_id/:file - Get document',
-        'GET /api/documents/:user_id/:file/download - Get download URL',
-        'DELETE /api/documents/:user_id/:file - Delete document'
+        'GET /vib-documents-function/api/documents - List documents',
+        'GET /vib-documents-function/api/documents/folders - List folders and files',
+        'POST /vib-documents-function/api/documents/folders - Create folder',
+        'POST /vib-documents-function/api/documents/presigned-url - Generate presigned URLs',
+        'POST /vib-documents-function/api/documents - Create document',
+        'GET /vib-documents-function/api/documents/:user_id/:file - Get document',
+        'GET /vib-documents-function/api/documents/:user_id/:file/download - Get download URL',
+        'DELETE /vib-documents-function/api/documents/:user_id/:file - Delete document'
       ]
     }
   });
@@ -63,7 +70,7 @@ app.notFound((c) => {
 
 // Error handler
 app.onError((err, c) => {
-  console.error('Unhandled error:', err);
+  logger.error('Unhandled error:', err);
   return c.json<ApiResponse>({
     success: false,
     error: 'Internal Server Error'

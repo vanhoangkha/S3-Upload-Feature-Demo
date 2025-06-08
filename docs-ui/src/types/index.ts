@@ -79,6 +79,16 @@ export interface DocumentFormData {
   folderPath?: string;
 }
 
+export interface DocumentCreateData {
+  title: string;
+  description?: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  s3Key: string;
+  folderPath?: string;
+}
+
 export interface DocumentListParams {
   user_id?: string;
   limit?: number;
