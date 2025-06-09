@@ -6,7 +6,8 @@ import { logger } from '../utils/logger';
 import {
   authMiddleware,
   getCurrentUser,
-  isCurrentUserAdmin
+  isCurrentUserAdmin,
+  adminOnlyMiddleware
 } from '../middleware/auth';
 
 const documents = new Hono();
@@ -588,6 +589,54 @@ documents.post('/delete', authMiddleware, async (c) => {
     return c.json<ApiResponse>({
       success: false,
       error: 'Failed to delete document'
+    }, 500);
+  }
+});
+
+// === ADMIN ENDPOINTS ===
+
+// GET /documents/admin/users - List all users (admin only)
+documents.get('/admin/users', authMiddleware, adminOnlyMiddleware, async (c) => {
+  try {
+    const users = await documentService.listAllUsers();
+
+    return c.json<ApiResponse>({
+      success: true,
+      data: users
+    });
+  } catch (error) {
+    logger.error('Error listing all users:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to list users'
+    }, 500);
+  }
+});
+
+// GET /documents/admin/protected/:user_id - Browse protected folder structure for specific user (admin only)
+documents.get('/admin/protected/:user_id', authMiddleware, adminOnlyMiddleware, async (c) => {
+  try {
+    const targetUserId = c.req.param('user_id');
+    const folderPath = c.req.query('path') || '';
+
+    if (!targetUserId) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'user_id is required'
+      }, 400);
+    }
+
+    const folderContents = await documentService.listProtectedFolderContents(targetUserId, folderPath);
+
+    return c.json<ApiResponse>({
+      success: true,
+      data: folderContents
+    });
+  } catch (error) {
+    logger.error('Error listing protected folder contents:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to list protected folder contents'
     }, 500);
   }
 });

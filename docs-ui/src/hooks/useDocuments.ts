@@ -220,3 +220,47 @@ export const useUpdateFolderCache = () => {
     },
   };
 };
+
+// === ADMIN HOOKS ===
+
+// Query key factories for admin functions
+export const adminKeys = {
+  all: ['admin'] as const,
+  users: () => [...adminKeys.all, 'users'] as const,
+  protectedFolder: (userId: string, folderPath?: string) =>
+    [...adminKeys.all, 'protected', userId, folderPath || ''] as const,
+};
+
+// Hook for admin to list all users
+export const useAdminUsers = () => {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: adminKeys.users(),
+    queryFn: async () => {
+      if (!user?.idToken || !user.cognitoUser['cognito:groups']?.includes('admin')) {
+        throw new Error('Admin access required');
+      }
+      return DocumentService.listAllUsers(user.idToken);
+    },
+    enabled: !!user?.idToken && user.cognitoUser['cognito:groups']?.includes('admin'),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};
+
+// Hook for admin to browse protected folder structure
+export const useAdminProtectedFolder = (userId: string, folderPath?: string) => {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: adminKeys.protectedFolder(userId, folderPath),
+    queryFn: async () => {
+      if (!user?.idToken || !user.cognitoUser['cognito:groups']?.includes('admin')) {
+        throw new Error('Admin access required');
+      }
+      return DocumentService.listProtectedFolderContents(userId, folderPath, user.idToken);
+    },
+    enabled: !!user?.idToken && !!userId && user.cognitoUser['cognito:groups']?.includes('admin'),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};

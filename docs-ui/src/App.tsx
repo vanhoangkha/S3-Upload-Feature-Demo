@@ -5,7 +5,7 @@ import { AppLayout } from './components/AppLayout';
 import { AuthProvider } from './components/AuthProvider';
 import { QueryProvider } from './providers/QueryProvider';
 import { ProtectedRoute } from './components/ProtectedRoute';
-import { DocumentsPage, UploadPage, LoginPage, RegisterPage } from './pages';
+import { DocumentsPage, UploadPage, LoginPage, RegisterPage, AdminPage } from './pages';
 import awsExports from './aws-exports';
 
 // Configure Amplify
@@ -44,6 +44,13 @@ function App() {
               <ProtectedRoute>
                 <AppLayout>
                   <UploadPage />
+                </AppLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin" element={
+              <ProtectedRoute requireAdmin={true}>
+                <AppLayout>
+                  <AdminPage />
                 </AppLayout>
               </ProtectedRoute>
             } />

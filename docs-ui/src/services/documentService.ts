@@ -6,7 +6,9 @@ import {
   PresignedUrlResponse,
   ApiResponse,
   MultipartUploadPart,
-  S3FolderListResponse
+  S3FolderListResponse,
+  UsersListResponse,
+  ProtectedFolderResponse
 } from '../types';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
@@ -309,5 +311,37 @@ export class DocumentService {
     } catch {
       return false;
     }
+  }
+
+  // === ADMIN METHODS ===
+
+  // Admin-only: List all users
+  static async listAllUsers(token?: string): Promise<UsersListResponse> {
+    const apiInstance = token ? createAuthenticatedApi(token) : api;
+    const response = await apiInstance.get<ApiResponse<UsersListResponse>>('/admin/users');
+
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to list users');
+    }
+
+    return response.data.data;
+  }
+
+  // Admin-only: List protected folder contents for a specific user
+  static async listProtectedFolderContents(userId: string, folderPath?: string, token?: string): Promise<ProtectedFolderResponse> {
+    const searchParams = new URLSearchParams();
+    if (folderPath && folderPath.trim()) {
+      searchParams.append('path', folderPath);
+    }
+
+    const url = `/admin/protected/${userId}${searchParams.toString() ? `?${searchParams}` : ''}`;
+    const apiInstance = token ? createAuthenticatedApi(token) : api;
+    const response = await apiInstance.get<ApiResponse<ProtectedFolderResponse>>(url);
+
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to list protected folder contents');
+    }
+
+    return response.data.data;
   }
 }

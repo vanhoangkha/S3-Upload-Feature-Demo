@@ -46,6 +46,22 @@ export interface FolderListResponse {
   files: FolderItem[];
 }
 
+// Admin-specific types
+export interface UserStats {
+  user_id: string;
+  documentCount: number;
+  lastActivity: string;
+}
+
+export interface UsersListResponse {
+  users: UserStats[];
+}
+
+export interface ProtectedFolderResponse extends FolderListResponse {
+  targetUserId: string;
+  protectedPath: string;
+}
+
 // Document update functionality removed - edit functionality is no longer supported
 
 export interface PresignedUrlResponse {

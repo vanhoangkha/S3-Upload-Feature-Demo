@@ -15,7 +15,7 @@ interface AppLayoutProps {
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, signOut } = useAuth();
+  const { user, signOut, isAdmin } = useAuth();
 
   const navigationItems: SideNavigationProps.Item[] = [
     {
@@ -23,11 +23,16 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       text: 'Documents',
       href: '/documents',
     },
-    {
-      type: 'link',
-      text: 'Upload Document',
-      href: '/upload',
-    },
+    ...(isAdmin ? [
+      {
+        type: 'divider' as const,
+      },
+      {
+        type: 'link' as const,
+        text: 'Admin Panel',
+        href: '/admin',
+      },
+    ] : []),
   ];
 
   const handleNavigate = (event: CustomEvent<SideNavigationProps.FollowDetail>) => {
@@ -54,7 +59,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         utilities={[
           {
             type: 'menu-dropdown',
-            text: user?.cognitoUser.email || 'User',
+            text: `${user?.cognitoUser.email || 'User'}${isAdmin ? ' (Admin)' : ''}`,
             iconName: 'user-profile',
             items: [
               {

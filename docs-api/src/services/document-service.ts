@@ -245,4 +245,72 @@ export class DocumentService {
       nextToken: result.LastEvaluatedKey ? JSON.stringify(result.LastEvaluatedKey) : undefined,
     };
   }
+
+  // Admin-only method: List all users with document count
+  async listAllUsers(): Promise<{
+    users: {
+      user_id: string;
+      documentCount: number;
+      lastActivity: string;
+    }[];
+  }> {
+    try {
+      const command = new ScanCommand({
+        TableName: config.documentsTableName,
+        FilterExpression: 'attribute_exists(isActive) AND isActive = :isActive',
+        ExpressionAttributeValues: {
+          ':isActive': true,
+        },
+        ProjectionExpression: 'user_id, createdAt, updatedAt'
+      });
+
+      const result = await docClient.send(command);
+      const items = (result.Items as any[]) || [];
+
+      // Group by user_id and count documents
+      const userStats = new Map();
+
+      items.forEach(item => {
+        const userId = item.user_id;
+        if (!userStats.has(userId)) {
+          userStats.set(userId, {
+            user_id: userId,
+            documentCount: 0,
+            lastActivity: item.createdAt
+          });
+        }
+
+        const stats = userStats.get(userId);
+        stats.documentCount++;
+
+        // Update last activity if this item is more recent
+        if (item.updatedAt > stats.lastActivity) {
+          stats.lastActivity = item.updatedAt;
+        }
+      });
+
+      return {
+        users: Array.from(userStats.values()).sort((a, b) =>
+          new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime()
+        )
+      };
+    } catch (error) {
+      logger.error('Error listing all users:', error);
+      throw error;
+    }
+  }
+
+  // Admin-only method: List folder contents for any user (for admin view of protected/* structure)
+  async listProtectedFolderContents(targetUserId: string, folderPath: string = ''): Promise<FolderListResponse & {
+    targetUserId: string;
+    protectedPath: string;
+  }> {
+    const folderContents = await this.listFolderContents(targetUserId, folderPath);
+
+    return {
+      ...folderContents,
+      targetUserId,
+      protectedPath: `protected/${targetUserId}${folderPath ? '/' + folderPath : ''}`
+    };
+  }
 }

@@ -124,3 +124,19 @@ export interface S3FolderListResponse {
   folders: S3FolderItem[];
   files: S3FolderItem[];
 }
+
+// Admin-specific types
+export interface UserStats {
+  user_id: string;
+  documentCount: number;
+  lastActivity: string;
+}
+
+export interface UsersListResponse {
+  users: UserStats[];
+}
+
+export interface ProtectedFolderResponse extends FolderStructure {
+  targetUserId: string;
+  protectedPath: string;
+}
