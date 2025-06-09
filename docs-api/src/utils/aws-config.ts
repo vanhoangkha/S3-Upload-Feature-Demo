@@ -28,7 +28,9 @@ export const config = {
   webStoreBucketName: process.env.WEB_STORE_BUCKET_NAME || 'vibdmswebstore2026',
   region: process.env.AWS_REGION || 'us-east-1',
   presignedUrlExpiry: parseInt(process.env.PRESIGNED_URL_EXPIRY || '3600'),
-  allowedOrigins: (process.env.ALLOWED_ORIGINS || 'http://localhost:3000').split(','),
+  allowedOrigins: process.env.ALLOWED_ORIGINS === '*'
+    ? true
+    : (process.env.ALLOWED_ORIGINS || 'http://localhost:3000').split(','),
   cognitoUserPoolId: process.env.COGNITO_USER_POOL_ID,
   apiGatewayUrl: process.env.API_GATEWAY_URL,
 };

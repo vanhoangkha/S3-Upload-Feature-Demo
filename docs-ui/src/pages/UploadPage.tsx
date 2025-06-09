@@ -15,14 +15,17 @@ import {
   FileUploadProps,
 } from '@cloudscape-design/components';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { DocumentService } from '../services/documentService';
 import { useAuth } from '../components/AuthProvider';
 import { validateFile } from '../utils/helpers';
+import { documentKeys } from '../hooks/useDocuments';
 
 export const UploadPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [files, setFiles] = useState<File[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -133,6 +136,34 @@ export const UploadPage: React.FC = () => {
       }
 
       setSuccess(`Successfully uploaded ${files.length} document(s)`);
+
+      // Invalidate folder cache to refresh the UI
+      const targetFolderPath = folderPath.trim() || undefined;
+      const urlFolderPath = searchParams.get('folder');
+
+      // Invalidate the target folder where files were uploaded
+      queryClient.invalidateQueries({
+        queryKey: documentKeys.folderContents(targetFolderPath),
+      });
+
+      // Also invalidate the URL folder if different from target folder
+      if (urlFolderPath && urlFolderPath !== targetFolderPath) {
+        queryClient.invalidateQueries({
+          queryKey: documentKeys.folderContents(urlFolderPath),
+        });
+      }
+
+      // Also invalidate the root folder if uploading to a subfolder
+      if (targetFolderPath) {
+        queryClient.invalidateQueries({
+          queryKey: documentKeys.folderContents(),
+        });
+      }
+
+      // Invalidate all document queries to ensure everything is fresh
+      queryClient.invalidateQueries({
+        queryKey: documentKeys.all,
+      });
 
       // Reset form
       setFiles([]);

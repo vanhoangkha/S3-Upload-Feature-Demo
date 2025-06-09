@@ -14,9 +14,20 @@ const app = new Hono();
 app.use('*', honoLogger());
 app.use('*', prettyJSON());
 app.use('*', cors({
-  origin: config.allowedOrigins,
-  allowMethods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
+  origin: (origin, c) => {
+    // If allowedOrigins is true (wildcard), allow all origins
+    if (config.allowedOrigins === true) {
+      return origin || '*';
+    }
+    // If allowedOrigins is an array, check if origin is included
+    if (Array.isArray(config.allowedOrigins)) {
+      return config.allowedOrigins.includes(origin || '') ? origin : null;
+    }
+    return null;
+  },
+  allowMethods: ['GET', 'POST', 'DELETE', 'PUT', 'PATCH', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
 }));
 
 // Add optional authentication middleware to extract user context
