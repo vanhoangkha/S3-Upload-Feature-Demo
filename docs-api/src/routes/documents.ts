@@ -543,16 +543,46 @@ documents.post('/delete', authMiddleware, async (c) => {
       }, 404);
     }
 
-    // Delete from S3
-    await s3Service.deleteObject(document.s3Key);
+    try {
+      // Delete from S3 first
+      await s3Service.deleteObject(document.s3Key);
+      logger.info('Successfully deleted document from S3', { s3Key: document.s3Key });
 
-    // Delete from DynamoDB
-    await documentService.deleteDocument(user_id, s3Key);
+      // Only soft delete from DynamoDB if S3 deletion was successful
+      const dynamoDbDeleted = await documentService.deleteDocument(user_id, s3Key);
 
-    return c.json<ApiResponse>({
-      success: true,
-      message: 'Document deleted successfully'
-    });
+      if (!dynamoDbDeleted) {
+        logger.warn('S3 deletion successful but DynamoDB soft delete failed', {
+          s3Key: document.s3Key,
+          user_id,
+          file: s3Key
+        });
+        return c.json<ApiResponse>({
+          success: false,
+          error: 'Document deleted from storage but metadata update failed'
+        }, 500);
+      }
+
+      logger.info('Successfully deleted document from both S3 and DynamoDB', {
+        s3Key: document.s3Key,
+        user_id,
+        file: s3Key
+      });
+
+      return c.json<ApiResponse>({
+        success: true,
+        message: 'Document deleted successfully'
+      });
+    } catch (s3Error) {
+      logger.error('Failed to delete document from S3', {
+        error: s3Error,
+        s3Key: document.s3Key
+      });
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Failed to delete document from storage'
+      }, 500);
+    }
   } catch (error) {
     logger.error('Error deleting document:', error);
     return c.json<ApiResponse>({

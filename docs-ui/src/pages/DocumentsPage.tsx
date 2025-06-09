@@ -605,24 +605,43 @@ export const DocumentsPage: React.FC = () => {
             items={tableItems}
             loading={loading}
             loadingText="Loading documents..."
-            selectedItems={selectedItems.filter(item => folderStructure.files.some(file => file.document?.user_id === item.user_id && file.document?.file === item.file))}
+            selectedItems={tableItems.filter((tableItem: any) =>
+              tableItem.itemType === 'file' &&
+              tableItem.document &&
+              selectedItems.some(selected =>
+                selected.user_id === tableItem.document.user_id &&
+                selected.file === tableItem.document.file
+              )
+            )}
             onSelectionChange={({ detail }) => {
-              // Only allow selection of files, not folders
-              const fileItems = detail.selectedItems.filter((item: any) => item.itemType === 'file');
-              setSelectedItems(fileItems.map((item: any) => item.document));
+              // Only allow selection of files with document metadata, not folders
+              const fileItems = detail.selectedItems.filter((item: any) =>
+                item.itemType === 'file' && item.document
+              );
+              setSelectedItems(fileItems.map((item: any) => item.document).filter(Boolean));
             }}
             selectionType="multi"
+            // Make items non-selectable if they don't have document metadata
+            isItemDisabled={(item: any) =>
+              item.itemType === 'folder' || (item.itemType === 'file' && !item.document)
+            }
             ariaLabels={{
               selectionGroupLabel: 'Items selection',
               allItemsSelectionLabel: ({ selectedItems }) =>
                 `${selectedItems.length} ${selectedItems.length === 1 ? 'item' : 'items'
                 } selected`,
-              itemSelectionLabel: ({ selectedItems }, item) => {
-                const isItemSelected = selectedItems.filter(
-                  (i) => i.file === item.file
-                ).length;
-                return `${item.title} is ${isItemSelected ? '' : 'not '
-                  }selected`;
+              itemSelectionLabel: ({ selectedItems }, item: any) => {
+                // Only show selection for files with document metadata
+                if (item.itemType !== 'file' || !item.document) {
+                  return '';
+                }
+                const isItemSelected = selectedItems.some((selectedItem: any) =>
+                  selectedItem.itemType === 'file' &&
+                  selectedItem.document?.user_id === item.document.user_id &&
+                  selectedItem.document?.file === item.document.file
+                );
+                const displayName = item.document.title || item.name;
+                return `${displayName} is ${isItemSelected ? '' : 'not '}selected`;
               },
             }}
             header={

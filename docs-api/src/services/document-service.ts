@@ -1,4 +1,4 @@
-import { PutCommand, GetCommand, DeleteCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, GetCommand, DeleteCommand, QueryCommand, ScanCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { docClient, config } from '../utils/aws-config';
 import { logger } from '../utils/logger';
 import { Document, CreateDocumentRequest, CreateFolderRequest, FolderListResponse } from '../types';
@@ -145,19 +145,25 @@ export class DocumentService {
   // Document update functionality removed - edit functionality is no longer supported
 
   async deleteDocument(user_id: string, file: string): Promise<boolean> {
-    // Soft delete - mark as inactive instead of hard delete
+    // Soft delete - mark as inactive instead of hard delete using UpdateCommand
     const now = new Date().toISOString();
 
-    const command = new PutCommand({
+    const command = new UpdateCommand({
       TableName: config.documentsTableName,
-      Item: {
+      Key: {
         user_id,
         file,
-        isActive: false,
-        updatedAt: now,
+      },
+      UpdateExpression: 'SET isActive = :inactive, updatedAt = :now',
+      ExpressionAttributeValues: {
+        ':inactive': false,
+        ':now': now,
       },
       // Use ConditionExpression to ensure the item exists
-      ConditionExpression: 'attribute_exists(user_id) AND attribute_exists(file)',
+      ConditionExpression: 'attribute_exists(user_id) AND attribute_exists(#f)',
+      ExpressionAttributeNames: {
+        '#f': 'file'
+      },
     });
 
     try {
