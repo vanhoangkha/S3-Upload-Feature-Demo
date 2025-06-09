@@ -18,6 +18,101 @@ The system consists of two main components:
    - Features responsive design for desktop and mobile devices
    - Includes document upload with progress tracking
 
+## AWS Architecture
+
+### Infrastructure Components
+
+1. **Authentication & Authorization**
+   - Amazon Cognito for user authentication
+   - IAM roles and policies for fine-grained access control
+   - JWT tokens for secure API communication
+
+2. **Storage Layer**
+   - Amazon S3 for document storage
+     - Separate buckets for documents and web assets
+     - Vendor-based folder structure
+     - Lifecycle policies for cost optimization
+   - DynamoDB for metadata storage
+     - Document information and permissions
+     - User and vendor data
+     - Fast and scalable access patterns
+
+3. **Compute Resources**
+   - AWS Lambda for serverless API endpoints
+   - API Gateway for RESTful API management
+   - CloudFront for content delivery and caching
+
+4. **Security & Compliance**
+   - AWS KMS for encryption key management
+   - CloudWatch for monitoring and logging
+   - AWS WAF for web application firewall
+   - SSL/TLS encryption for data in transit
+
+### Data Flow
+
+1. **User Authentication Flow**
+   - User logs in through Cognito
+   - JWT token issued for API access
+   - Token validated on each API request
+
+2. **Document Upload Flow**
+   - Client requests presigned URL from API
+   - Uploads directly to S3 using presigned URL
+   - API updates metadata in DynamoDB
+   - CloudFront caches static assets
+
+3. **Document Download Flow**
+   - Client requests document access
+   - API validates permissions
+   - Generates temporary S3 URL
+   - Client downloads through CloudFront
+
+4. **Document Management Flow**
+   - Role-based access control checks
+   - DynamoDB queries for document listing
+   - S3 operations for file management
+   - Audit logging for all operations
+
+### Security Features
+
+1. **Authentication & Authorization**
+   - Multi-factor authentication support
+   - Role-based access control (RBAC)
+   - Temporary credentials for S3 access
+   - API request signing
+
+2. **Data Protection**
+   - Server-side encryption for S3
+   - Encryption at rest and in transit
+   - Secure key management
+   - Regular security audits
+
+3. **Access Control**
+   - Fine-grained IAM policies
+   - S3 bucket policies
+   - CORS configuration
+   - IP-based restrictions
+
+### Scalability Features
+
+1. **Serverless Architecture**
+   - Auto-scaling Lambda functions
+   - Pay-per-use pricing model
+   - No server management required
+   - High availability across regions
+
+2. **Storage Scalability**
+   - Unlimited S3 storage
+   - DynamoDB auto-scaling
+   - Efficient caching with CloudFront
+   - Cost-effective storage tiers
+
+3. **Performance Optimization**
+   - Global CDN distribution
+   - Edge caching
+   - Parallel processing
+   - Optimized data access patterns
+
 ## Key Features
 
 ### Vendor-Based Bucket Structure
