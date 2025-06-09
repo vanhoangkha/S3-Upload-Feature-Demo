@@ -255,10 +255,10 @@ export async function adminOnlyMiddleware(c: Context, next: Next) {
 
 /**
  * User resource access middleware - ensures users can only access their own resources
+ * This middleware validates that the user can access the resource specified by the :user_id route parameter
  */
 export async function userResourceMiddleware(c: Context, next: Next) {
   const authContext = c.get('authContext');
-  const userIdParam = c.req.param('user_id');
 
   if (!authContext?.isAuthenticated || !authContext.user) {
     return c.json({
@@ -273,11 +273,133 @@ export async function userResourceMiddleware(c: Context, next: Next) {
     return;
   }
 
+  // Extract the user_id from the route parameter
+  const targetUserId = c.req.param('user_id');
+
+  // Debug logging removed for production
+
+  // If no user_id in route, this middleware shouldn't be applied
+  if (!targetUserId) {
+    logger.warn('userResourceMiddleware applied to route without :user_id parameter', {
+      path: c.req.path,
+      method: c.req.method
+    });
+    await next();
+    return;
+  }
+
   // Regular users can only access their own resources
-  if (userIdParam && userIdParam !== authContext.user.userId) {
+  if (targetUserId !== authContext.user.userId) {
+    logger.warn('User attempted to access another user\'s resources', {
+      currentUserId: authContext.user.userId,
+      targetUserId: targetUserId,
+      path: c.req.path,
+      method: c.req.method
+    });
+
     return c.json({
       success: false,
       error: 'Forbidden - You can only access your own resources'
+    }, 403);
+  }
+
+  await next();
+}
+
+/**
+ * Document access middleware - ensures users can only access their own documents
+ * This middleware is for routes that include document paths with user IDs embedded in them
+ */
+export async function documentAccessMiddleware(c: Context, next: Next) {
+  const authContext = c.get('authContext');
+
+  if (!authContext?.isAuthenticated || !authContext.user) {
+    return c.json({
+      success: false,
+      error: 'Unauthorized'
+    }, 401);
+  }
+
+  // Admin can access any user's documents
+  if (authContext.user.isAdmin) {
+    await next();
+    return;
+  }
+
+  // Try to extract user ID from the encoded document path
+  let targetUserId: string | null = null;
+
+  // First, try to get from route parameter (for standard routes)
+  const userIdParam = c.req.param('user_id');
+  const fileParam = c.req.param('file');
+
+  logger.debug('documentAccessMiddleware params', {
+    userIdParam,
+    fileParam: fileParam ? decodeURIComponent(fileParam) : null,
+    path: c.req.path,
+    method: c.req.method
+  });
+
+  if (userIdParam) {
+    // Check if userIdParam looks like a file path instead of a UUID
+    // If it contains "protected/" then it's likely the entire file path
+    if (userIdParam.includes('protected/')) {
+      // Extract user ID from the path pattern: protected/{user_id}/...
+      const pathMatch = userIdParam.match(/^protected\/([a-f0-9\-]{36})\//i);
+      if (pathMatch) {
+        targetUserId = pathMatch[1];
+      }
+    } else {
+      // It's a proper user ID
+      targetUserId = userIdParam;
+    }
+  } else {
+    // Try to extract from document path in the file parameter
+    if (fileParam) {
+      const decodedPath = decodeURIComponent(fileParam);
+
+      // Match pattern: protected/{user_id}/...
+      const pathMatch = decodedPath.match(/^protected\/([a-f0-9\-]{36})\//i);
+      if (pathMatch) {
+        targetUserId = pathMatch[1];
+      }
+    }
+  }
+
+  logger.debug('Document access check', {
+    currentUserId: authContext.user.userId,
+    targetUserId: targetUserId,
+    path: c.req.path,
+    method: c.req.method,
+    userIdParam,
+    fileParam: fileParam ? decodeURIComponent(fileParam) : null
+  });
+
+  // If we couldn't extract a user ID, deny access for security
+  if (!targetUserId) {
+    logger.warn('Could not extract user ID from document path', {
+      path: c.req.path,
+      method: c.req.method,
+      fileParam: c.req.param('file')
+    });
+    return c.json({
+      success: false,
+      error: 'Forbidden - Invalid document path'
+    }, 403);
+  }
+
+  // Regular users can only access their own documents
+  if (targetUserId !== authContext.user.userId) {
+    logger.warn('User attempted to access another user\'s document', {
+      currentUserId: authContext.user.userId,
+      targetUserId: targetUserId,
+      path: c.req.path,
+      method: c.req.method
+    });
+
+    return c.json({
+      success: false,
+      error: 'Forbidden - You can only access your own documents'
     }, 403);
   }
 

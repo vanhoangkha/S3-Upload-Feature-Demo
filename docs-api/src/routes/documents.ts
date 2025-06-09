@@ -2,12 +2,9 @@ import { Hono } from 'hono';
 import { DocumentService } from '../services/document-service';
 import { S3Service } from '../services/s3-service';
 import { CreateDocumentRequest, CreateFolderRequest, ApiResponse } from '../types';
-import { S3FolderItem, S3FolderListResponse } from '../types/folder';
 import { logger } from '../utils/logger';
 import {
   authMiddleware,
-  adminOnlyMiddleware,
-  userResourceMiddleware,
   getCurrentUser,
   isCurrentUserAdmin
 } from '../middleware/auth';
@@ -15,6 +12,47 @@ import {
 const documents = new Hono();
 const documentService = new DocumentService();
 const s3Service = new S3Service();
+
+// === UTILITY FUNCTIONS ===
+
+/**
+ * Extract user ID from S3 key
+ * @param s3Key - S3 key in format: protected/{user_id}/...
+ * @returns user_id or null if invalid format
+ * @example extractUserIdFromS3Key("protected/123e4567-e89b-12d3-a456-426614174000/file.pdf") 
+ * // returns "123e4567-e89b-12d3-a456-426614174000"
+ */
+function extractUserIdFromS3Key(s3Key: string): string | null {
+  const pathMatch = s3Key.match(/^protected\/([a-f0-9\-]{36})\//i);
+  return pathMatch ? pathMatch[1] : null;
+}
+
+/**
+ * Check if current user can access documents for the specified user
+ * @param c - Hono context containing authentication information
+ * @param targetUserId - User ID being accessed
+ * @returns true if access is allowed (admin or same user)
+ */
+function canAccessUserDocuments(c: any, targetUserId: string): boolean {
+  const currentUser = getCurrentUser(c);
+  if (!currentUser) return false;
+
+  return isCurrentUserAdmin(c) || currentUser.userId === targetUserId;
+}
+
+/**
+ * Validate folder name format
+ * @param folderName - Name to validate
+ * @returns true if valid (letters, numbers, spaces, hyphens, underscores only)
+ * @example isValidFolderName("My Folder-123_Test") // returns true
+ * @example isValidFolderName("My/Invalid\\Folder") // returns false
+ */
+function isValidFolderName(folderName: string): boolean {
+  const folderNameRegex = /^[a-zA-Z0-9\s\-_]+$/;
+  return folderNameRegex.test(folderName);
+}
+
+// === DOCUMENT LISTING ENDPOINTS ===
 
 // GET /documents - List all documents (admin endpoint) or user's documents
 documents.get('/', async (c) => {
@@ -79,7 +117,9 @@ documents.get('/', async (c) => {
   }
 });
 
-// POST /documents/folders - OPTIMIZED: Create a new folder (stores in DynamoDB)
+// === FOLDER MANAGEMENT ENDPOINTS ===
+
+// POST /documents/folders - Create a new folder (stores in DynamoDB)
 documents.post('/folders', authMiddleware, async (c) => {
   try {
     const requestData = await c.req.json();
@@ -149,8 +189,7 @@ documents.post('/folders', authMiddleware, async (c) => {
     }
 
     // Validate folder name (no special characters except spaces, hyphens, underscores)
-    const folderNameRegex = /^[a-zA-Z0-9\s\-_]+$/;
-    if (!folderNameRegex.test(data.folderName)) {
+    if (!isValidFolderName(data.folderName)) {
       return c.json<ApiResponse>({
         success: false,
         error: 'Folder name can only contain letters, numbers, spaces, hyphens, and underscores'
@@ -182,7 +221,7 @@ documents.post('/folders', authMiddleware, async (c) => {
   }
 });
 
-// GET /documents/folders - OPTIMIZED: List folders and files using DynamoDB only
+// GET /documents/folders - List folders and files using DynamoDB-first approach
 documents.get('/folders', authMiddleware, async (c) => {
   try {
     const user_id = c.req.query('user_id');
@@ -232,105 +271,40 @@ documents.get('/folders', authMiddleware, async (c) => {
   }
 });
 
-// GET /documents/folders/:user_id - LEGACY: List folders for a user (S3-based - for backward compatibility)
-documents.get('/folders/:user_id', userResourceMiddleware, async (c) => {
+// === DOCUMENT OPERATIONS (REST API - Modern request body-based) ===
+
+// POST /documents/get - Get a specific document using s3Key in request body
+documents.post('/get', authMiddleware, async (c) => {
   try {
-    const user_id = c.req.param('user_id');
-    const folderPath = c.req.query('path') || '';
+    const { s3Key } = await c.req.json();
 
-
-
-    if (!user_id) {
+    if (!s3Key) {
       return c.json<ApiResponse>({
         success: false,
-        error: 'user_id is required'
+        error: 's3Key is required in request body'
       }, 400);
     }
 
-    // Build S3 prefix for the user's folder structure
-    let prefix = `protected/${user_id}/`;
-    if (folderPath && folderPath.trim()) {
-      const normalizedPath = folderPath.trim().replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
-      prefix += `${normalizedPath}/`;
+    // Extract user_id from the S3 key (format: protected/{user_id}/...)
+    const user_id = extractUserIdFromS3Key(s3Key);
+    if (!user_id) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Invalid S3 key format - must start with protected/{user_id}/'
+      }, 400);
     }
 
+    const currentUser = getCurrentUser(c);
 
+    // Check if user can access this document
+    if (!canAccessUserDocuments(c, user_id)) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Access denied - you can only access your own documents'
+      }, 403);
+    }
 
-    // List all objects under this prefix
-    const objects = await s3Service.listObjects(prefix, 1000);
-
-
-    // Extract folders and files from the S3 objects
-    const folders = new Set<string>();
-    const files: any[] = [];
-
-    objects.forEach(obj => {
-      if (!obj.key) return;
-
-      const keyAfterPrefix = obj.key.substring(prefix.length);
-      if (!keyAfterPrefix) return;
-
-
-
-      const pathParts = keyAfterPrefix.split('/').filter((part: string) => part !== ''); // Remove empty parts
-
-      if (pathParts.length === 1) {
-        // This is a file directly in the current folder
-        if (!pathParts[0].startsWith('.folder_')) {
-
-          files.push({
-            name: pathParts[0],
-            type: 'file',
-            size: obj.size,
-            lastModified: obj.lastModified,
-            s3Key: obj.key
-          });
-        } else {
-
-        }
-      } else if (pathParts.length > 1) {
-        // This indicates a subfolder - only add the first level folder
-        const topLevelFolder = pathParts[0];
-
-        folders.add(topLevelFolder);
-      }
-    });
-
-    const folderList: S3FolderItem[] = Array.from(folders).map(folderName => ({
-      name: folderName,
-      type: 'folder',
-      path: folderPath ? `${folderPath}/${folderName}` : folderName
-    }));
-
-
-
-    return c.json<ApiResponse<S3FolderListResponse>>({
-      success: true,
-      data: {
-        currentPath: folderPath,
-        folders: folderList.sort((a, b) => a.name.localeCompare(b.name)),
-        files: files.sort((a, b) => a.name.localeCompare(b.name))
-      }
-    });
-  } catch (error) {
-    logger.error('Error listing folders:', error);
-    return c.json<ApiResponse>({
-      success: false,
-      error: `Failed to list folders: ${error instanceof Error ? error.message : 'Unknown error'}`
-    }, 500);
-  }
-});
-
-// GET /documents/:user_id/:file - Get a specific document
-documents.get('/:user_id/:file', userResourceMiddleware, async (c) => {
-  try {
-    const user_id = c.req.param('user_id');
-    const encodedFile = c.req.param('file');
-
-    // URL decode the file parameter to handle S3 keys with forward slashes
-    const file = decodeURIComponent(encodedFile);
-
-    const document = await documentService.getDocument(user_id, file);
+    const document = await documentService.getDocument(user_id, s3Key);
 
     if (!document) {
       return c.json<ApiResponse>({
@@ -351,6 +325,8 @@ documents.get('/:user_id/:file', userResourceMiddleware, async (c) => {
     }, 500);
   }
 });
+
+// === FILE UPLOAD ENDPOINTS ===
 
 // POST /documents/presigned-url - Generate presigned URLs for upload
 documents.post('/presigned-url', authMiddleware, async (c) => {
@@ -470,16 +446,39 @@ documents.post('/', authMiddleware, async (c) => {
 
 // Document update functionality removed - edit functionality is no longer supported
 
-// GET /documents/:user_id/:file/download - Get download URL for a document
-documents.get('/:user_id/:file/download', userResourceMiddleware, async (c) => {
+// POST /documents/download - Get download URL for a document using s3Key in request body
+documents.post('/download', authMiddleware, async (c) => {
   try {
-    const user_id = c.req.param('user_id');
-    const encodedFile = c.req.param('file');
+    const { s3Key } = await c.req.json();
 
-    // URL decode the file parameter to handle S3 keys with forward slashes
-    const file = decodeURIComponent(encodedFile);
+    if (!s3Key) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 's3Key is required in request body'
+      }, 400);
+    }
 
-    const document = await documentService.getDocument(user_id, file);
+    // Extract user_id from the S3 key (format: protected/{user_id}/...)
+    const user_id = extractUserIdFromS3Key(s3Key);
+    if (!user_id) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Invalid S3 key format - must start with protected/{user_id}/'
+      }, 400);
+    }
+
+    const currentUser = getCurrentUser(c);
+
+    // Check if user can access this document
+    if (!canAccessUserDocuments(c, user_id)) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Access denied - you can only download your own documents'
+      }, 403);
+    }
+
+    // Get document from DynamoDB to verify it exists
+    const document = await documentService.getDocument(user_id, s3Key);
 
     if (!document) {
       return c.json<ApiResponse>({
@@ -488,6 +487,7 @@ documents.get('/:user_id/:file/download', userResourceMiddleware, async (c) => {
       }, 404);
     }
 
+    // Generate presigned download URL
     const downloadUrl = await s3Service.getDownloadUrl(document.s3Key);
 
     return c.json<ApiResponse>({
@@ -503,16 +503,38 @@ documents.get('/:user_id/:file/download', userResourceMiddleware, async (c) => {
   }
 });
 
-// DELETE /documents/:user_id/:file - Delete a document
-documents.delete('/:user_id/:file', userResourceMiddleware, async (c) => {
+// POST /documents/delete - Delete a document using s3Key in request body
+documents.post('/delete', authMiddleware, async (c) => {
   try {
-    const user_id = c.req.param('user_id');
-    const encodedFile = c.req.param('file');
+    const { s3Key } = await c.req.json();
 
-    // URL decode the file parameter to handle S3 keys with forward slashes
-    const file = decodeURIComponent(encodedFile);
+    if (!s3Key) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 's3Key is required in request body'
+      }, 400);
+    }
 
-    const document = await documentService.getDocument(user_id, file);
+    // Extract user_id from the S3 key (format: protected/{user_id}/...)
+    const user_id = extractUserIdFromS3Key(s3Key);
+    if (!user_id) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Invalid S3 key format - must start with protected/{user_id}/'
+      }, 400);
+    }
+
+    const currentUser = getCurrentUser(c);
+
+    // Check if user can delete this document
+    if (!canAccessUserDocuments(c, user_id)) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Access denied - you can only delete your own documents'
+      }, 403);
+    }
+
+    const document = await documentService.getDocument(user_id, s3Key);
 
     if (!document) {
       return c.json<ApiResponse>({
@@ -525,7 +547,7 @@ documents.delete('/:user_id/:file', userResourceMiddleware, async (c) => {
     await s3Service.deleteObject(document.s3Key);
 
     // Delete from DynamoDB
-    await documentService.deleteDocument(user_id, file);
+    await documentService.deleteDocument(user_id, s3Key);
 
     return c.json<ApiResponse>({
       success: true,

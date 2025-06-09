@@ -17,7 +17,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Document, FolderItem } from '../types';
 import { DocumentService } from '../services/documentService';
 import { useAuth } from '../components/AuthProvider';
-import { formatFileSize, formatDate, getFileIcon, getBreadcrumbs, isFilePath, getFileNameFromPath, getFolderPathFromFilePath } from '../utils/helpers';
+import { formatFileSize, formatDate, getFileIcon, getBreadcrumbs, isFilePath, getFileNameFromPath, getFolderPathFromFilePath, truncateFileName } from '../utils/helpers';
 
 export const DocumentsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -88,8 +88,12 @@ export const DocumentsPage: React.FC = () => {
     const urlFileName = getFileFromUrl();
 
     if (urlFolderPath !== currentFolderPath) {
+      // Clear data immediately when folder path changes to prevent showing stale data
+      setFolderStructure({ folders: [], files: [] });
+      setDocuments([]);
+      setSelectedItems([]);
+      setViewingFile(null);
       setCurrentFolderPath(urlFolderPath);
-
     }
 
     // If URL points to a file, we'll handle file viewing after documents are loaded
@@ -168,6 +172,7 @@ export const DocumentsPage: React.FC = () => {
       // Clear data on error to prevent showing stale data
       setFolderStructure({ folders: [], files: [] });
       setDocuments([]);
+      setViewingFile(null);
     } finally {
       setLoading(false);
     }
@@ -187,7 +192,7 @@ export const DocumentsPage: React.FC = () => {
       setLoading(true);
 
       for (const doc of selectedItems) {
-        await DocumentService.deleteDocument(doc.file, user.idToken);
+        await DocumentService.deleteDocument(doc.s3Key, user.idToken);
       }
 
       setSelectedItems([]);
@@ -223,18 +228,27 @@ export const DocumentsPage: React.FC = () => {
   };
 
   const handleFolderNavigation = (folderPath: string) => {
+    // Clear data immediately before navigation to prevent showing stale data
+    setFolderStructure({ folders: [], files: [] });
+    setDocuments([]);
+    setSelectedItems([]);
+    setViewingFile(null);
+    setCurrentPageIndex(1);
+
     const navigationPath = folderPath ? `/documents/${folderPath}` : '/documents';
     navigate(navigationPath);
-    setCurrentPageIndex(1);
-    setSelectedItems([]);
   };
 
   const handleBreadcrumbClick = (path: string) => {
+    // Clear data immediately before navigation to prevent showing stale data
+    setFolderStructure({ folders: [], files: [] });
+    setDocuments([]);
+    setSelectedItems([]);
+    setViewingFile(null);
+    setCurrentPageIndex(1);
 
     const navigationPath = path ? `/documents/${path}` : '/documents';
     navigate(navigationPath);
-    setCurrentPageIndex(1);
-    setSelectedItems([]);
   };
 
   const filteredDocuments = documents.filter(doc =>
@@ -269,8 +283,9 @@ export const DocumentsPage: React.FC = () => {
           {item.itemType === 'folder' ? '📁' : getFileIcon(item.document?.mimeType || '')}
         </Box>
       ),
-      width: 60,
-      minWidth: 60,
+      width: 50,
+      minWidth: 50,
+      maxWidth: 50,
     },
     {
       id: 'name',
@@ -283,7 +298,7 @@ export const DocumentsPage: React.FC = () => {
               onClick={() => handleFolderNavigation(item.path)}
               iconName="folder"
             >
-              {item.name}
+              {truncateFileName(item.name, 50)}
             </Button>
           );
         } else {
@@ -295,27 +310,24 @@ export const DocumentsPage: React.FC = () => {
               <Button
                 variant="link"
                 onClick={() => handleFileNavigation(item.document)}
+                ariaLabel={displayName}
               >
-                {displayName}
+                {truncateFileName(displayName, 50)}
               </Button>
             );
           } else {
             // Files without metadata - not clickable
             return (
-              <span>
-                {displayName}
+              <span title={displayName}>
+                {truncateFileName(displayName, 50)}
               </span>
             );
           }
         }
       },
       sortingField: 'name',
-    },
-    {
-      id: 'fileName',
-      header: 'File Name',
-      cell: (item: any) => item.itemType === 'folder' ? '-' : (item.document?.file || item.name),
-      sortingField: 'file',
+      width: 400,
+      minWidth: 250,
     },
     {
       id: 'fileSize',
@@ -325,6 +337,8 @@ export const DocumentsPage: React.FC = () => {
         return item.document?.fileSize ? formatFileSize(item.document.fileSize) : 'Unknown';
       },
       sortingField: 'fileSize',
+      width: 100,
+      minWidth: 80,
     },
     {
       id: 'createdAt',
@@ -334,6 +348,8 @@ export const DocumentsPage: React.FC = () => {
         return item.document?.createdAt ? formatDate(item.document.createdAt) : 'Unknown';
       },
       sortingField: 'createdAt',
+      width: 180,
+      minWidth: 150,
     },
     {
       id: 'actions',
@@ -359,7 +375,6 @@ export const DocumentsPage: React.FC = () => {
               variant="normal"
               iconName="download"
               onClick={() => {
-                // Direct S3 download - showing a temporary message since we can't download directly
                 setError(`The file "${item.name}" can't be downloaded directly as it has no document record. Add document metadata first.`);
                 setTimeout(() => setError(''), 5000);
               }}
@@ -369,6 +384,8 @@ export const DocumentsPage: React.FC = () => {
           );
         }
       },
+      width: 180,
+      minWidth: 120,
     },
   ];
 
@@ -428,6 +445,12 @@ export const DocumentsPage: React.FC = () => {
                     variant="normal"
                     iconName="arrow-left"
                     onClick={() => {
+                      // Clear data immediately before navigation
+                      setFolderStructure({ folders: [], files: [] });
+                      setDocuments([]);
+                      setSelectedItems([]);
+                      setViewingFile(null);
+
                       const folderPath = currentFolderPath ? `/documents/${currentFolderPath}` : '/documents';
                       navigate(folderPath);
                     }}
@@ -459,33 +482,17 @@ export const DocumentsPage: React.FC = () => {
             </Alert>
           )}
 
-          {/* Breadcrumb Navigation */}
-          <Box margin={{ bottom: 'm' }}>
-            <SpaceBetween direction="horizontal" size="xs">
-              {getBreadcrumbs(currentFolderPath).map((breadcrumb, index) => (
-                <React.Fragment key={breadcrumb.path || 'root'}>
-                  {index > 0 && <span style={{ color: '#687078' }}>/</span>}
-                  <Button
-                    variant="link"
-                    onClick={() => handleBreadcrumbClick(breadcrumb.path)}
-                    ariaLabel={`Navigate to ${breadcrumb.name}`}
-                  >
-                    {breadcrumb.name}
-                  </Button>
-                </React.Fragment>
-              ))}
-              <span style={{ color: '#687078' }}>/</span>
-              <span style={{ fontWeight: 'bold' }}>{viewingFile.file}</span>
-            </SpaceBetween>
-          </Box>
-
           {/* File Details */}
           <SpaceBetween size="l">
             <Box>
               <SpaceBetween size="m">
                 <div>
                   <Box variant="awsui-key-label">File Name</Box>
-                  <Box>{viewingFile.file}</Box>
+                  <Box>
+                    <span title={viewingFile.file} style={{ wordBreak: 'break-all' }}>
+                      {truncateFileName(viewingFile.file, 60)}
+                    </span>
+                  </Box>
                 </div>
                 <div>
                   <Box variant="awsui-key-label">Title</Box>

@@ -31,6 +31,27 @@ export const truncateText = (text: string, maxLength: number): string => {
   return text.substring(0, maxLength) + '...';
 };
 
+export const truncateFileName = (filename: string, maxLength: number = 50): string => {
+  if (filename.length <= maxLength) return filename;
+
+  const lastDotIndex = filename.lastIndexOf('.');
+  if (lastDotIndex === -1) {
+    // No extension, just truncate
+    return `${filename.substring(0, maxLength - 3)}...`;
+  }
+
+  const name = filename.substring(0, lastDotIndex);
+  const extension = filename.substring(lastDotIndex);
+
+  // Keep extension and truncate name if needed
+  const maxNameLength = maxLength - 3 - extension.length; // 3 for "..."
+  if (name.length > maxNameLength) {
+    return `${name.substring(0, maxNameLength)}...${extension}`;
+  }
+
+  return filename;
+};
+
 export const isImageFile = (mimeType: string): boolean => {
   return mimeType.startsWith('image/');
 };

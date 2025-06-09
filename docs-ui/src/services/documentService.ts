@@ -182,12 +182,10 @@ export class DocumentService {
     return response.data.data;
   }
 
-  // Get specific document
-  static async getDocument(fileName: string, token?: string): Promise<Document> {
-    // URL encode the fileName to handle S3 keys with forward slashes
-    const encodedFileName = encodeURIComponent(fileName);
+  // Get specific document using s3Key in request body
+  static async getDocument(s3Key: string, token?: string): Promise<Document> {
     const apiInstance = token ? createAuthenticatedApi(token) : api;
-    const response = await apiInstance.get<ApiResponse<Document>>(`/${encodedFileName}`);
+    const response = await apiInstance.post<ApiResponse<Document>>('/get', { s3Key });
 
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to fetch document');
@@ -196,12 +194,10 @@ export class DocumentService {
     return response.data.data;
   }
 
-  // Get download URL
-  static async getDownloadUrl(fileName: string, token?: string): Promise<string> {
-    // URL encode the fileName to handle S3 keys with forward slashes
-    const encodedFileName = encodeURIComponent(fileName);
+  // Get download URL using s3Key in request body
+  static async getDownloadUrl(s3Key: string, token?: string): Promise<string> {
     const apiInstance = token ? createAuthenticatedApi(token) : api;
-    const response = await apiInstance.get<ApiResponse<{ downloadUrl: string }>>(`/${encodedFileName}/download`);
+    const response = await apiInstance.post<ApiResponse<{ downloadUrl: string }>>('/download', { s3Key });
 
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to get download URL');
@@ -210,12 +206,10 @@ export class DocumentService {
     return response.data.data.downloadUrl;
   }
 
-  // Delete document
-  static async deleteDocument(fileName: string, token?: string): Promise<void> {
-    // URL encode the fileName to handle S3 keys with forward slashes
-    const encodedFileName = encodeURIComponent(fileName);
+  // Delete document using s3Key in request body
+  static async deleteDocument(s3Key: string, token?: string): Promise<void> {
     const apiInstance = token ? createAuthenticatedApi(token) : api;
-    const response = await apiInstance.delete<ApiResponse<void>>(`/${encodedFileName}`);
+    const response = await apiInstance.post<ApiResponse<void>>('/delete', { s3Key });
 
     if (!response.data.success) {
       throw new Error(response.data.error || 'Failed to delete document');

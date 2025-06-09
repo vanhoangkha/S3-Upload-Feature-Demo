@@ -108,6 +108,8 @@ export interface FolderStructure {
   files: FolderItem[];
 }
 
+// Legacy S3 folder types - deprecated in favor of modern DynamoDB-first approach
+// These are kept for backward compatibility only
 export interface S3FolderItem {
   name: string;
   type: 'folder' | 'file';
