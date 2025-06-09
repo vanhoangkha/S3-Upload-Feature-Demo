@@ -115,6 +115,80 @@ The system consists of two main components:
    - Parallel processing
    - Optimized data access patterns
 
+## AWS Cost Analysis - S3 Upload Feature Demo
+
+📍 Singapore Region (ap-southeast-1) - 1000 Users/Month
+
+### 🔢 USAGE ASSUMPTIONS
+
+| Metric | Value | Basis |
+|---|---|---|
+| Users | 1,000 | Project requirement |
+| Avg files/user/month | 50 | Document management pattern |
+| Avg file size | 2MB | Mixed docs (PDFs, images, text) |
+| Storage growth | 100GB/month | 1,000 users × 50 files × 2MB |
+| API calls | 5M/month | CRUD operations + authentication |
+| Data transfer out | 500GB/month | Download/preview activities |
+| Web assets | 2GB | Static files (JS, CSS, images) |
+
+### 💰 DETAILED COST BREAKDOWN
+
+#### 🗂️ Amazon S3 Storage
+
+| Component | Usage | Rate (Singapore) | Cost |
+|---|---|---|---|
+| Standard Storage | 102GB | $0.025/GB | $2.55 |
+| PUT Requests | 100,000 | $0.005/1k | $0.50 |
+| GET Requests | 500,000 | $0.0004/1k | $0.20 |
+| Data Transfer to CloudFront | 500GB | $0.00 | $0.00 |
+| **Total S3** | | | **$3.25** |
+
+#### 🚀 Amazon CloudFront CDN
+
+| Component | Usage | Rate (Singapore) | Cost |
+|---|---|---|---|
+| Data Transfer Out | 500GB | $0.120/GB | $60.00 |
+| HTTP/HTTPS Requests | 10M | $0.0075/10k | $7.50 |
+| Origin Requests | 1M | Included | $0.00 |
+| **Total CloudFront** | | | **$67.50** |
+
+Note: Singapore trong price class 3 (most expensive) với rate $0.120/GB
+
+#### 🔌 API Gateway (HTTP API)
+
+| Component | Usage | Rate | Cost |
+|---|---|---|---|
+| API Calls | 5M | $1.00/million | $5.00 |
+| Data Transfer | 50GB | $0.09/GB | $4.50 |
+| **Total API Gateway** | | | **$9.50** |
+
+#### ⚡ AWS Lambda
+
+| Component | Usage | Rate | Cost |
+|---|---|---|---|
+| Requests | 5M | $0.20/million | $1.00 |
+| Duration (128MB, 200ms avg) | 166.67 GB-seconds | $0.0000166667/GB-sec | $2.78 |
+| **Total Lambda** | | | **$3.78** |
+
+#### 📅 DynamoDB (On-Demand)
+
+| Component | Usage | Rate | Cost |
+|---|---|---|---|
+| Write Requests | 500k | $1.25/million | $0.63 |
+| Read Requests | 1M | $0.25/million | $0.25 |
+| Storage | 1GB | $0.25/GB | $0.25 |
+| **Total DynamoDB** | | | **$1.13** |
+
+#### 🔐 Amazon Cognito
+
+| Component | Usage | Rate | Cost |
+|---|---|---|---|
+| Monthly Active Users | 950 MAU | $0.0055/MAU | $5.23 |
+| (First 50 MAU free) | | | |
+| **Total Cognito** | | | **$5.23** |
+
+### 📊 TOTAL MONTHLY COST: $90.39
+
 ## Key Features
 
 ### Vendor-Based Bucket Structure
