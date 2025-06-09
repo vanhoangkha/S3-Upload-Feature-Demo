@@ -2,6 +2,8 @@
 
 This project demonstrates a modern document management system with secure S3 uploads, featuring a backend API (docs-api) and a frontend UI (docs-ui) built with React and AWS Cloudscape Design System.
 
+![System Architecture](architecture.png)
+
 ## System Architecture
 
 The system consists of two main components:
