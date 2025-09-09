@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Amplify RBAC</title>
+</head>
+<body>
+    <h1>🧪 Test Amplify + RBAC</h1>
+    <div id="status">Testing...</div>
+    
+    <script>
+        // Test if Amplify config is loaded
+        fetch('https://d1ljyycpkoybvj.cloudfront.net/login')
+            .then(response => response.text())
+            .then(html => {
+                const hasAmplify = html.includes('aws-amplify');
+                const hasRBAC = html.includes('cognito:groups');
+                const hasConfig = html.includes('us-east-1_GcPiggAiS');
+                
+                document.getElementById('status').innerHTML = `
+                    <h2>✅ Test Results:</h2>
+                    <p>🔐 Amplify UI: ${hasAmplify ? '✅ YES' : '❌ NO'}</p>
+                    <p>👑 RBAC Code: ${hasRBAC ? '✅ YES' : '❌ NO'}</p>
+                    <p>⚙️ Cognito Config: ${hasConfig ? '✅ YES' : '❌ NO'}</p>
+                    <p><strong>Status: ${hasAmplify && hasRBAC && hasConfig ? '🎉 READY!' : '⚠️ PENDING'}</strong></p>
+                    <p><a href="https://d1ljyycpkoybvj.cloudfront.net/login" target="_blank">🔗 Test Login Page</a></p>
+                `;
+            })
+            .catch(err => {
+                document.getElementById('status').innerHTML = '❌ Error: ' + err.message;
+            });
+    </script>
+</body>
+</html>

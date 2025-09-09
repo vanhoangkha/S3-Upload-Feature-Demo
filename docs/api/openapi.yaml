@@ -1,0 +1,662 @@
+openapi: 3.0.3
+info:
+  title: Document Management System API
+  description: Production-ready DMS API with RBAC
+  version: 1.0.0
+  contact:
+    name: DMS Team
+    email: team@example.com
+
+servers:
+  - url: https://api.example.com/v1
+    description: Production server
+  - url: https://dev-api.example.com/v1
+    description: Development server
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: integer
+            message:
+              type: string
+            details:
+              type: object
+
+    Document:
+      type: object
+      required:
+        - document_id
+        - name
+        - mime
+        - size
+        - checksum
+        - s3_key
+        - version
+        - created_at
+        - updated_at
+        - owner_user_id
+        - vendor_id
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        mime:
+          type: string
+        size:
+          type: integer
+        checksum:
+          type: string
+        s3_key:
+          type: string
+        version:
+          type: integer
+        tags:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+        owner_user_id:
+          type: string
+        vendor_id:
+          type: string
+
+    UserInfo:
+      type: object
+      required:
+        - userId
+        - roles
+        - vendorId
+      properties:
+        userId:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+            enum: [Admin, Vendor, User]
+        vendorId:
+          type: string
+
+paths:
+  /me:
+    get:
+      summary: Get current user info
+      operationId: whoAmI
+      responses:
+        '200':
+          description: User information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfo'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /files:
+    get:
+      summary: List documents
+      operationId: listDocuments
+      parameters:
+        - name: scope
+          in: query
+          schema:
+            type: string
+            enum: [me, vendor]
+            default: me
+        - name: q
+          in: query
+          description: Search query
+          schema:
+            type: string
+        - name: tags
+          in: query
+          description: Filter by tags
+          schema:
+            type: array
+            items:
+              type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          description: Pagination cursor
+          schema:
+            type: string
+        - name: includeDeleted
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Document'
+                  nextCursor:
+                    type: string
+                    nullable: true
+                  total:
+                    type: integer
+
+    post:
+      summary: Create document metadata
+      operationId: createDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - mime
+                - size
+                - checksum
+                - vendorId
+                - userId
+              properties:
+                name:
+                  type: string
+                mime:
+                  type: string
+                size:
+                  type: integer
+                checksum:
+                  type: string
+                vendorId:
+                  type: string
+                userId:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Document created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documentId:
+                    type: string
+                  version:
+                    type: integer
+                  s3Key:
+                    type: string
+
+  /files/{id}:
+    get:
+      summary: Get document details
+      operationId: getDocument
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: includeDeleted
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Document details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document:
+                    $ref: '#/components/schemas/Document'
+
+    patch:
+      summary: Update document
+      operationId: updateDocument
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Document updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document:
+                    $ref: '#/components/schemas/Document'
+
+    delete:
+      summary: Soft delete document
+      operationId: deleteDocument
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /files/{id}/restore:
+    post:
+      summary: Restore deleted document
+      operationId: restoreDocument
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document restored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document:
+                    $ref: '#/components/schemas/Document'
+
+  /files/{id}/versions:
+    get:
+      summary: List document versions
+      operationId: listVersions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document versions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  versions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        version:
+                          type: integer
+                        key:
+                          type: string
+                        size:
+                          type: integer
+                        lastModified:
+                          type: string
+                          format: date-time
+
+  /files/presign/upload:
+    post:
+      summary: Get presigned upload URL
+      operationId: presignUpload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vendorId
+                - userId
+                - filename
+                - contentType
+              properties:
+                vendorId:
+                  type: string
+                userId:
+                  type: string
+                documentId:
+                  type: string
+                  format: uuid
+                version:
+                  type: integer
+                  default: 1
+                filename:
+                  type: string
+                contentType:
+                  type: string
+      responses:
+        '200':
+          description: Presigned upload URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                  key:
+                    type: string
+                  documentId:
+                    type: string
+
+  /files/presign/download:
+    post:
+      summary: Get presigned download URL
+      operationId: presignDownload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vendorId
+                - userId
+                - s3Key
+              properties:
+                vendorId:
+                  type: string
+                userId:
+                  type: string
+                s3Key:
+                  type: string
+      responses:
+        '200':
+          description: Presigned download URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+
+  /admin/users:
+    get:
+      summary: List users (Admin only)
+      operationId: adminListUsers
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 60
+            default: 20
+        - name: nextToken
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        username:
+                          type: string
+                        status:
+                          type: string
+                        email:
+                          type: string
+                        vendor_id:
+                          type: string
+                        groups:
+                          type: array
+                          items:
+                            type: string
+                  nextToken:
+                    type: string
+                    nullable: true
+
+    post:
+      summary: Create user (Admin only)
+      operationId: adminCreateUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - usernameOrEmail
+                - vendor_id
+              properties:
+                usernameOrEmail:
+                  type: string
+                  format: email
+                vendor_id:
+                  type: string
+                groups:
+                  type: array
+                  items:
+                    type: string
+                    enum: [Admin, Vendor, User]
+                  default: [User]
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  username:
+                    type: string
+                  vendor_id:
+                    type: string
+                  groups:
+                    type: array
+                    items:
+                      type: string
+
+  /admin/users/{id}/roles:
+    post:
+      summary: Update user roles (Admin only)
+      operationId: adminUpdateRoles
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - groups
+              properties:
+                vendor_id:
+                  type: string
+                groups:
+                  type: array
+                  items:
+                    type: string
+                    enum: [Admin, Vendor, User]
+      responses:
+        '200':
+          description: Roles updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /admin/users/{id}/signout:
+    post:
+      summary: Force user signout (Admin only)
+      operationId: adminSignOut
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User signed out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /admin/audits:
+    get:
+      summary: View audit logs (Admin only)
+      operationId: adminAudits
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: actor
+          in: query
+          schema:
+            type: string
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        timestamp:
+                          type: string
+                          format: date-time
+                        actor:
+                          type: object
+                          properties:
+                            userId:
+                              type: string
+                            vendorId:
+                              type: string
+                            roles:
+                              type: array
+                              items:
+                                type: string
+                        action:
+                          type: string
+                        resource:
+                          type: object
+                          properties:
+                            type:
+                              type: string
+                            id:
+                              type: string
+                        result:
+                          type: string
+                          enum: [success, error]
+                        details:
+                          type: object
