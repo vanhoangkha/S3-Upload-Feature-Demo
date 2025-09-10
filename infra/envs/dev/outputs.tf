@@ -70,7 +70,7 @@ output "s3_bucket_arns" {
 output "lambda_function_arns" {
   description = "ARNs of Lambda functions"
   value = {
-    for k, v in module.lambda_functions : k => v.function_arn
+    for k, v in module.lambda_functions : k => v.lambda_arn
   }
 }
 

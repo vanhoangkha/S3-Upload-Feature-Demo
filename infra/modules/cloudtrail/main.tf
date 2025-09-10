@@ -24,11 +24,6 @@ resource "aws_cloudtrail" "main" {
       type   = "AWS::S3::Object"
       values = ["arn:aws:s3:::${var.app_name}-${var.env}-*/*"]
     }
-
-    data_resource {
-      type   = "AWS::DynamoDB::Table"
-      values = ["arn:aws:dynamodb:us-east-1:590183822512:table/${var.app_name}-${var.env}-*"]
-    }
   }
 
   tags = var.tags

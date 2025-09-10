@@ -56,10 +56,7 @@ resource "aws_s3_bucket_logging" "docs" {
 resource "aws_s3_bucket_notification" "docs" {
   bucket = aws_s3_bucket.docs.id
 
-  cloudwatch_configuration {
-    cloudwatch_configuration_id = "docs-events"
-    events                      = ["s3:ObjectCreated:*", "s3:ObjectRemoved:*"]
-  }
+  eventbridge = true
 }
 
 # Cross-region replication for docs bucket
@@ -212,10 +209,7 @@ resource "aws_s3_bucket_logging" "web" {
 resource "aws_s3_bucket_notification" "web" {
   bucket = aws_s3_bucket.web.id
 
-  cloudwatch_configuration {
-    cloudwatch_configuration_id = "web-events"
-    events                      = ["s3:ObjectCreated:*", "s3:ObjectRemoved:*"]
-  }
+  eventbridge = true
 }
 
 # Cross-region replication for web bucket
@@ -303,10 +297,7 @@ resource "aws_s3_bucket_logging" "logs" {
 resource "aws_s3_bucket_notification" "logs" {
   bucket = aws_s3_bucket.logs.id
 
-  cloudwatch_configuration {
-    cloudwatch_configuration_id = "logs-events"
-    events                      = ["s3:ObjectCreated:*"]
-  }
+  eventbridge = true
 }
 
 # Cross-region replication for logs bucket
