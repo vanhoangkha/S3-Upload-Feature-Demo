@@ -18,13 +18,8 @@ variable "allowed_origins" {
   }
 }
 
-variable "jwt_authorizer_function_name" {
-  description = "JWT authorizer Lambda function name"
-  type        = string
-}
-
-variable "jwt_authorizer_invoke_arn" {
-  description = "JWT authorizer Lambda invoke ARN"
+variable "cognito_user_pool_id" {
+  description = "Cognito User Pool ID"
   type        = string
 }
 
@@ -33,8 +28,8 @@ variable "cognito_user_pool_client_id" {
   type        = string
 }
 
-variable "cognito_issuer" {
-  description = "Cognito issuer URL"
+variable "aws_region" {
+  description = "AWS region"
   type        = string
 }
 
@@ -51,7 +46,7 @@ variable "routes" {
   type = map(object({
     route_key     = string
     function_name = string
-    auth_required = bool
+    scopes        = optional(list(string), [])
   }))
 }
 

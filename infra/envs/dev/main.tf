@@ -165,27 +165,27 @@ locals {
 
   # API routes configuration
   api_routes = {
-    "GET /me"                      = { route_key = "GET /me", function_name = "whoAmI", auth_required = true }
-    "GET /files"                   = { route_key = "GET /files", function_name = "listDocuments", auth_required = true }
-    "POST /files"                  = { route_key = "POST /files", function_name = "createDocument", auth_required = true }
-    "GET /files/{id}"              = { route_key = "GET /files/{id}", function_name = "getDocument", auth_required = true }
-    "PATCH /files/{id}"            = { route_key = "PATCH /files/{id}", function_name = "updateDocument", auth_required = true }
-    "DELETE /files/{id}"           = { route_key = "DELETE /files/{id}", function_name = "deleteDocument", auth_required = true }
-    "POST /files/{id}/restore"     = { route_key = "POST /files/{id}/restore", function_name = "restoreDocument", auth_required = true }
-    "GET /files/{id}/versions"     = { route_key = "GET /files/{id}/versions", function_name = "listVersions", auth_required = true }
-    "POST /files/presign/upload"   = { route_key = "POST /files/presign/upload", function_name = "presignUpload", auth_required = true }
-    "POST /files/presign/download" = { route_key = "POST /files/presign/download", function_name = "presignDownload", auth_required = true }
-    "GET /admin/users"             = { route_key = "GET /admin/users", function_name = "adminListUsers", auth_required = true }
-    "POST /admin/users"            = { route_key = "POST /admin/users", function_name = "adminCreateUser", auth_required = true }
-    "POST /admin/users/{id}/roles" = { route_key = "POST /admin/users/{id}/roles", function_name = "adminUpdateRoles", auth_required = true }
-    "POST /admin/users/{id}/signout" = { route_key = "POST /admin/users/{id}/signout", function_name = "adminSignOut", auth_required = true }
-    "GET /admin/audits"            = { route_key = "GET /admin/audits", function_name = "adminAudits", auth_required = true }
-    "GET /user/profile"            = { route_key = "GET /user/profile", function_name = "getUserProfile", auth_required = true }
-    "PUT /user/profile"            = { route_key = "PUT /user/profile", function_name = "updateUserProfile", auth_required = true }
-    "GET /user/documents"          = { route_key = "GET /user/documents", function_name = "getUserDocuments", auth_required = true }
-    "GET /vendor/documents"        = { route_key = "GET /vendor/documents", function_name = "getVendorDocuments", auth_required = true }
-    "GET /vendor/users"            = { route_key = "GET /vendor/users", function_name = "getVendorUsers", auth_required = true }
-    "GET /vendor/stats"            = { route_key = "GET /vendor/stats", function_name = "getVendorStats", auth_required = true }
+    "GET /me"                      = { route_key = "GET /me", function_name = "whoAmI", scopes = [] }
+    "GET /files"                   = { route_key = "GET /files", function_name = "listDocuments", scopes = [] }
+    "POST /files"                  = { route_key = "POST /files", function_name = "createDocument", scopes = [] }
+    "GET /files/{id}"              = { route_key = "GET /files/{id}", function_name = "getDocument", scopes = [] }
+    "PATCH /files/{id}"            = { route_key = "PATCH /files/{id}", function_name = "updateDocument", scopes = [] }
+    "DELETE /files/{id}"           = { route_key = "DELETE /files/{id}", function_name = "deleteDocument", scopes = [] }
+    "POST /files/{id}/restore"     = { route_key = "POST /files/{id}/restore", function_name = "restoreDocument", scopes = [] }
+    "GET /files/{id}/versions"     = { route_key = "GET /files/{id}/versions", function_name = "listVersions", scopes = [] }
+    "POST /files/presign/upload"   = { route_key = "POST /files/presign/upload", function_name = "presignUpload", scopes = [] }
+    "POST /files/presign/download" = { route_key = "POST /files/presign/download", function_name = "presignDownload", scopes = [] }
+    "GET /admin/users"             = { route_key = "GET /admin/users", function_name = "adminListUsers", scopes = [] }
+    "POST /admin/users"            = { route_key = "POST /admin/users", function_name = "adminCreateUser", scopes = [] }
+    "POST /admin/users/{id}/roles" = { route_key = "POST /admin/users/{id}/roles", function_name = "adminUpdateRoles", scopes = [] }
+    "POST /admin/users/{id}/signout" = { route_key = "POST /admin/users/{id}/signout", function_name = "adminSignOut", scopes = [] }
+    "GET /admin/audits"            = { route_key = "GET /admin/audits", function_name = "adminAudits", scopes = [] }
+    "GET /user/profile"            = { route_key = "GET /user/profile", function_name = "getUserProfile", scopes = [] }
+    "PUT /user/profile"            = { route_key = "PUT /user/profile", function_name = "updateUserProfile", scopes = [] }
+    "GET /user/documents"          = { route_key = "GET /user/documents", function_name = "getUserDocuments", scopes = [] }
+    "GET /vendor/documents"        = { route_key = "GET /vendor/documents", function_name = "getVendorDocuments", scopes = [] }
+    "GET /vendor/users"            = { route_key = "GET /vendor/users", function_name = "getVendorUsers", scopes = [] }
+    "GET /vendor/stats"            = { route_key = "GET /vendor/stats", function_name = "getVendorStats", scopes = [] }
   }
 }
 
@@ -292,11 +292,9 @@ module "apigateway" {
   env         = var.env
   kms_key_arn = module.kms.key_arn
   
+  cognito_user_pool_id        = module.cognito.user_pool_id
   cognito_user_pool_client_id = module.cognito.user_pool_client_id
-  cognito_issuer              = module.cognito.cognito_issuer
-  
-  jwt_authorizer_function_name = module.lambda_functions["jwtAuthorizer"].function_name
-  jwt_authorizer_invoke_arn    = module.lambda_functions["jwtAuthorizer"].invoke_arn
+  aws_region                  = data.aws_region.current.name
   
   allowed_origins = [
     "http://localhost:3000"
@@ -306,7 +304,7 @@ module "apigateway" {
     for name in keys(local.all_lambda_functions) : name => {
       function_name = module.lambda_functions[name].function_name
       invoke_arn    = module.lambda_functions[name].invoke_arn
-    } if name != "jwtAuthorizer"
+    }
   }
   
   routes = local.api_routes

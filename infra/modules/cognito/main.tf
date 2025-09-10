@@ -42,7 +42,7 @@ resource "aws_cognito_user_pool_client" "main" {
     "ALLOW_REFRESH_TOKEN_AUTH"
   ]
 
-  supported_identity_providers = ["COGNITO"]
+  supported_identity_providers = concat(["COGNITO"], var.external_providers)
 
   callback_urls = var.callback_urls
   logout_urls   = var.logout_urls
@@ -102,7 +102,42 @@ resource "aws_lambda_permission" "cognito_trigger" {
   source_arn    = aws_cognito_user_pool.main.arn
 }
 
-# UI Customization for Hosted UI
+# External Identity Providers
+resource "aws_cognito_identity_provider" "saml" {
+  count         = var.saml_provider_enabled ? 1 : 0
+  user_pool_id  = aws_cognito_user_pool.main.id
+  provider_name = var.saml_provider_name
+  provider_type = "SAML"
+
+  provider_details = {
+    MetadataURL = var.saml_metadata_url
+  }
+
+  attribute_mapping = {
+    email = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+    "custom:role" = "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"
+  }
+}
+
+resource "aws_cognito_identity_provider" "oidc" {
+  count         = var.oidc_provider_enabled ? 1 : 0
+  user_pool_id  = aws_cognito_user_pool.main.id
+  provider_name = var.oidc_provider_name
+  provider_type = "OIDC"
+
+  provider_details = {
+    client_id     = var.oidc_client_id
+    client_secret = var.oidc_client_secret
+    attributes_request_method = "GET"
+    oidc_issuer = var.oidc_issuer_url
+    authorize_scopes = "openid email profile"
+  }
+
+  attribute_mapping = {
+    email = "email"
+    "custom:role" = "role"
+  }
+}
 resource "aws_cognito_user_pool_ui_customization" "main" {
   client_id    = aws_cognito_user_pool_client.main.id
   user_pool_id = aws_cognito_user_pool.main.id

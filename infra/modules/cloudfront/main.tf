@@ -8,15 +8,14 @@ resource "aws_cloudfront_origin_access_control" "web" {
 
 resource "aws_cloudfront_distribution" "web" {
   origin {
-    domain_name              = var.s3_bucket_domain_name
-    origin_access_control_id = aws_cloudfront_origin_access_control.web.id
-    origin_id                = "S3-${var.s3_bucket_name}"
+    domain_name = var.s3_bucket_domain_name
+    origin_id   = "S3-${var.s3_bucket_name}"
   }
 
   enabled             = true
   is_ipv6_enabled     = true
   default_root_object = "index.html"
-  web_acl_id          = aws_wafv2_web_acl.cloudfront.arn
+  # web_acl_id          = aws_wafv2_web_acl.cloudfront.arn
 
   # Logging disabled due to S3 bucket ACL restrictions
   # logging_config {
@@ -72,7 +71,7 @@ resource "aws_cloudfront_distribution" "web" {
   tags = var.tags
 }
 
-# S3 bucket policy to allow CloudFront access
+# S3 bucket policy to allow public read access
 resource "aws_s3_bucket_policy" "web" {
   bucket = var.s3_bucket_name
 
@@ -80,18 +79,11 @@ resource "aws_s3_bucket_policy" "web" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "AllowCloudFrontServicePrincipal"
+        Sid    = "PublicReadGetObject"
         Effect = "Allow"
-        Principal = {
-          Service = "cloudfront.amazonaws.com"
-        }
+        Principal = "*"
         Action   = "s3:GetObject"
         Resource = "${var.s3_bucket_arn}/*"
-        Condition = {
-          StringEquals = {
-            "AWS:SourceArn" = aws_cloudfront_distribution.web.arn
-          }
-        }
       }
     ]
   })

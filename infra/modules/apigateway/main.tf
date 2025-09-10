@@ -14,14 +14,16 @@ resource "aws_apigatewayv2_api" "main" {
   tags = var.tags
 }
 
-resource "aws_apigatewayv2_authorizer" "lambda" {
-  api_id                            = aws_apigatewayv2_api.main.id
-  authorizer_type                   = "REQUEST"
-  authorizer_uri                    = var.jwt_authorizer_invoke_arn
-  name                              = "jwt-authorizer"
-  authorizer_result_ttl_in_seconds  = 300
-  authorizer_payload_format_version = "2.0"
-  identity_sources                  = ["$request.header.Authorization"]
+resource "aws_apigatewayv2_authorizer" "jwt" {
+  api_id           = aws_apigatewayv2_api.main.id
+  authorizer_type  = "JWT"
+  identity_sources = ["$request.header.Authorization"]
+  name             = "cognito-jwt-authorizer"
+
+  jwt_configuration {
+    audience = [var.cognito_user_pool_client_id]
+    issuer   = "https://cognito-idp.${var.aws_region}.amazonaws.com/${var.cognito_user_pool_id}"
+  }
 }
 
 resource "aws_apigatewayv2_stage" "main" {
@@ -76,8 +78,9 @@ resource "aws_apigatewayv2_route" "lambda" {
   route_key = each.value.route_key
   target    = "integrations/${aws_apigatewayv2_integration.lambda[each.value.function_name].id}"
 
-  authorization_type = "CUSTOM"
-  authorizer_id      = aws_apigatewayv2_authorizer.lambda.id
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  authorization_scopes = each.value.scopes
 }
 
 # Lambda permissions
@@ -92,15 +95,6 @@ resource "aws_lambda_permission" "api_gw" {
   source_arn = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }
 
-# JWT Authorizer Lambda permission
-resource "aws_lambda_permission" "authorizer" {
-  statement_id  = "AllowExecutionFromAPIGatewayAuthorizer"
-  action        = "lambda:InvokeFunction"
-  function_name = var.jwt_authorizer_function_name
-  principal     = "apigateway.amazonaws.com"
-
-  source_arn = "${aws_apigatewayv2_api.main.execution_arn}/authorizers/${aws_apigatewayv2_authorizer.lambda.id}"
-}
 
 # Public auth routes (no authorization required)
 resource "aws_apigatewayv2_route" "auth_signin" {

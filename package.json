@@ -11,7 +11,7 @@
     "setup": "./scripts/setup-env.sh",
     "deploy": "./scripts/deploy.sh",
     "deploy:dev": "./scripts/deploy.sh dev",
-    "deploy:stg": "./scripts/deploy.sh stg", 
+    "deploy:stg": "./scripts/deploy.sh stg",
     "deploy:prod": "./scripts/deploy.sh prod",
     "test": "npm run test --workspaces",
     "build": "npm run build --workspaces",
@@ -29,5 +29,8 @@
     "react"
   ],
   "author": "Your Organization",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.883.0"
+  }
 }

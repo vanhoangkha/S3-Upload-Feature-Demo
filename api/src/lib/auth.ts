@@ -9,21 +9,21 @@ export interface AuthContext {
 }
 
 export const requireAuth = (event: APIGatewayProxyEvent | APIGatewayProxyEventV2): AuthContext => {
-  // Extract context from Lambda authorizer
-  const authorizer = (event.requestContext as any)?.authorizer;
+  // Extract JWT claims from API Gateway JWT authorizer
+  const claims = (event.requestContext as any)?.authorizer?.jwt?.claims;
   
-  if (!authorizer?.userId) {
-    throw new UnauthorizedError('Missing authorization context');
+  if (!claims?.sub) {
+    throw new UnauthorizedError('Missing JWT claims');
   }
   
-  // Parse roles from comma-separated string
-  const roles = authorizer.roles ? authorizer.roles.split(',') : [];
+  // Parse roles from cognito:groups claim
+  const groups = claims['cognito:groups']?.split(',') || [];
   
   return {
-    userId: authorizer.userId,
-    vendorId: authorizer.vendorId || '',
-    roles,
-    email: authorizer.email || ''
+    userId: claims.sub,
+    vendorId: claims['custom:vendor_id'] || '',
+    roles: groups,
+    email: claims.email || ''
   };
 };
 

@@ -1,200 +1,174 @@
-import React, { useEffect, useState } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AppLayout, TopNavigation, SideNavigation, Spinner, Box, Flashbar } from '@cloudscape-design/components';
-import { authService, User } from './services/auth';
-import LoginPage from './pages/LoginPage';
-import CallbackPage from './pages/CallbackPage';
-import DashboardPage from './pages/DashboardPage';
-import DocumentsPage from './pages/DocumentsPage';
-import DocumentVersionsPage from './pages/DocumentVersionsPage';
-import UsersPage from './pages/UsersPage';
-import AuditPage from './pages/AuditPage';
-import ProfilePage from './pages/ProfilePage';
-import VendorDashboardPage from './pages/VendorDashboardPage';
-import SystemHealthPage from './pages/SystemHealthPage';
-import DebugPage from './pages/DebugPage';
+import React, { useState } from 'react';
+import {
+  AppLayout,
+  TopNavigation,
+  SideNavigation,
+  ContentLayout,
+  Header,
+  Table,
+  Button,
+  SpaceBetween,
+  Box,
+  Alert,
+  Modal,
+  Form,
+  FormField,
+  Input,
+  Container
+} from '@cloudscape-design/components';
+import '@cloudscape-design/global-styles/index.css';
 
 function App() {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const location = useLocation();
+  const [activeTab, setActiveTab] = useState('documents');
+  const [showModal, setShowModal] = useState(false);
+  const [documents, setDocuments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [alert, setAlert] = useState<{type: 'success' | 'error', message: string} | null>(null);
 
-  useEffect(() => {
-    const checkAuth = () => {
-      console.log('Checking authentication state...');
-      const currentUser = authService.getUser();
-      const isAuth = authService.isAuthenticated();
-      
-      console.log('Auth check result:', { currentUser, isAuth });
-      setUser(currentUser);
-      setIsLoading(false);
-    };
-    
-    checkAuth();
-  }, []);
+  const API_URL = 'https://wcyez0q6t8.execute-api.us-east-1.amazonaws.com/v1';
 
-  const addNotification = (notification: any) => {
-    setNotifications(prev => [...prev, { ...notification, id: Date.now() }]);
-  };
-
-  const removeNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-  };
-
-  console.log('App render:', { isLoading, user: !!user, pathname: location.pathname });
-
-  if (isLoading) {
-    return (
-      <Box textAlign="center" padding="xxl">
-        <Spinner size="large" />
-        <Box variant="p" padding={{ top: 'm' }}>
-          Loading...
-        </Box>
-      </Box>
-    );
-  }
-
-  // Handle OAuth callback
-  if (location.pathname === '/callback') {
-    return <CallbackPage onSuccess={() => {
-      console.log('Callback success, updating user state');
-      setUser(authService.getUser());
-      addNotification({
-        type: 'success',
-        header: 'Sign in successful',
-        content: 'Welcome to Document Management System',
-        dismissible: true
+  const testAPI = async (endpoint: string) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        headers: {
+          'Authorization': 'Bearer test-token',
+          'Content-Type': 'application/json'
+        }
       });
-    }} />;
-  }
-
-  // Show login page if not authenticated
-  if (!user) {
-    console.log('User not authenticated, showing login page');
-    return <LoginPage />;
-  }
-
-  console.log('User authenticated, showing main app');
+      const data = await response.json();
+      setAlert({ type: response.ok ? 'success' : 'error', message: `${endpoint}: ${JSON.stringify(data)}` });
+    } catch (error: any) {
+      setAlert({ type: 'error', message: `${endpoint}: ${error.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const navigationItems = [
-    { type: 'link', text: 'Dashboard', href: '/' },
-    { type: 'divider' },
     { type: 'link', text: 'Documents', href: '/documents' },
-    ...(user?.groups.includes('Vendor') && !user?.groups.includes('Admin')
-      ? [{ type: 'link', text: 'Vendor Dashboard', href: '/vendor' }] 
-      : []
-    ),
-    ...(user?.groups.includes('Admin') || user?.groups.includes('Vendor') 
-      ? [{ type: 'link', text: 'Users', href: '/users' }] 
-      : []
-    ),
-    ...(user?.groups.includes('Admin') 
-      ? [
-          { type: 'divider' },
-          { type: 'link', text: 'Audit Logs', href: '/audit' },
-          { type: 'link', text: 'System Health', href: '/health' },
-          { type: 'link', text: 'Debug', href: '/debug' }
-        ] 
-      : []
-    ),
+    { type: 'link', text: 'Admin', href: '/admin' },
+    { type: 'link', text: 'Vendor', href: '/vendor' },
+    { type: 'link', text: 'User', href: '/user' }
+  ];
+
+  const endpoints = [
+    { name: 'Health Check', path: '/health' },
+    { name: 'Who Am I', path: '/me' },
+    { name: 'List Files', path: '/files' },
+    { name: 'Admin Users', path: '/admin/users' },
+    { name: 'Vendor Docs', path: '/vendor/documents' },
+    { name: 'User Profile', path: '/user/profile' }
   ];
 
   return (
-    <AppLayout
-      headerSelector="#header"
-      navigation={
-        <SideNavigation
-          header={{ text: 'DMS', href: '/' }}
-          items={navigationItems}
-        />
-      }
-      notifications={
-        <Flashbar
-          items={notifications}
-          onDismiss={({ detail }) => removeNotification(detail.id)}
-        />
-      }
-      content={
-        <Routes>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/documents" element={<DocumentsPage />} />
-          <Route path="/documents/:documentId/versions" element={<DocumentVersionsPage />} />
-          <Route 
-            path="/vendor" 
-            element={
-              user?.groups.includes('Vendor') 
-                ? <VendorDashboardPage /> 
-                : <Navigate to="/" replace />
-            } 
+    <>
+      <TopNavigation
+        identity={{ href: '/', title: 'DMS - API Integration Test' }}
+        utilities={[
+          {
+            type: 'button',
+            text: 'Test All APIs',
+            onClick: () => endpoints.forEach(ep => testAPI(ep.path))
+          }
+        ]}
+      />
+      
+      <AppLayout
+        navigation={
+          <SideNavigation
+            header={{ text: 'API Endpoints' }}
+            items={navigationItems}
+            onFollow={(e) => {
+              e.preventDefault();
+              setActiveTab(e.detail.href.replace('/', ''));
+            }}
           />
-          <Route 
-            path="/users" 
-            element={
-              user?.groups.includes('Admin') || user?.groups.includes('Vendor') 
-                ? <UsersPage /> 
-                : <Navigate to="/" replace />
-            } 
-          />
-          <Route 
-            path="/audit" 
-            element={
-              user?.groups.includes('Admin') 
-                ? <AuditPage /> 
-                : <Navigate to="/" replace />
-            } 
-          />
-          <Route 
-            path="/health" 
-            element={
-              user?.groups.includes('Admin') 
-                ? <SystemHealthPage /> 
-                : <Navigate to="/" replace />
-            } 
-          />
-          <Route 
-            path="/debug" 
-            element={
-              user?.groups.includes('Admin') 
-                ? <DebugPage /> 
-                : <Navigate to="/" replace />
-            } 
-          />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      }
-      toolsHide
-      navigationOpen
-    >
-      <div id="header">
-        <TopNavigation
-          identity={{
-            href: '/',
-            title: 'Document Management System',
-          }}
-          utilities={[
-            {
-              type: 'menu-dropdown',
-              text: user?.username || 'User',
-              description: user?.email,
-              iconName: 'user-profile',
-              items: [
-                { id: 'profile', text: 'Profile' },
-                { id: 'logout', text: 'Sign out' },
-              ],
-              onItemClick: ({ detail }) => {
-                if (detail.id === 'logout') {
-                  authService.logout();
-                } else if (detail.id === 'profile') {
-                  window.location.href = '/profile';
+        }
+        content={
+          <ContentLayout
+            header={
+              <Header
+                variant="h1"
+                actions={
+                  <Button variant="primary" onClick={() => setShowModal(true)}>
+                    Create Document
+                  </Button>
                 }
-              },
-            },
-          ]}
-        />
-      </div>
-    </AppLayout>
+              >
+                API Endpoint Testing
+              </Header>
+            }
+          >
+            <SpaceBetween size="l">
+              {alert && (
+                <Alert
+                  type={alert.type}
+                  dismissible
+                  onDismiss={() => setAlert(null)}
+                >
+                  {alert.message}
+                </Alert>
+              )}
+
+              <Container header={<Header>Available API Endpoints</Header>}>
+                <Table
+                  columnDefinitions={[
+                    { id: 'name', header: 'Endpoint', cell: item => item.name },
+                    { id: 'path', header: 'Path', cell: item => item.path },
+                    { id: 'action', header: 'Action', cell: item => (
+                      <Button 
+                        size="small" 
+                        onClick={() => testAPI(item.path)}
+                        loading={loading}
+                      >
+                        Test
+                      </Button>
+                    )}
+                  ]}
+                  items={endpoints}
+                  empty={<Box>No endpoints available</Box>}
+                />
+              </Container>
+
+              <Container header={<Header>Quick Actions</Header>}>
+                <SpaceBetween direction="horizontal" size="xs">
+                  <Button onClick={() => testAPI('/files')}>List Documents</Button>
+                  <Button onClick={() => testAPI('/admin/users')}>List Users</Button>
+                  <Button onClick={() => testAPI('/vendor/documents')}>Vendor Docs</Button>
+                  <Button onClick={() => testAPI('/user/profile')}>User Profile</Button>
+                </SpaceBetween>
+              </Container>
+            </SpaceBetween>
+          </ContentLayout>
+        }
+      />
+
+      <Modal
+        visible={showModal}
+        onDismiss={() => setShowModal(false)}
+        header="Create Document"
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button onClick={() => setShowModal(false)}>Cancel</Button>
+              <Button variant="primary" onClick={() => {
+                testAPI('/files');
+                setShowModal(false);
+              }}>
+                Create
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <Form>
+          <FormField label="Document Name">
+            <Input placeholder="Enter document name" />
+          </FormField>
+        </Form>
+      </Modal>
+    </>
   );
 }
 

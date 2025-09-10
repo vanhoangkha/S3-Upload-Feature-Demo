@@ -8,11 +8,11 @@ log_level = "INFO"
 
 # Cognito Configuration
 cognito_callback_urls = [
-  "https://d1ljyycpkoybvj.cloudfront.net/auth/callback",
+  "https://d29ewm56ohyich.cloudfront.net/auth/callback",
   "http://localhost:3000/auth/callback"
 ]
 
 cognito_logout_urls = [
-  "https://d1ljyycpkoybvj.cloudfront.net/auth/login",
+  "https://d29ewm56ohyich.cloudfront.net/auth/login",
   "http://localhost:3000/auth/login"
 ]

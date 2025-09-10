@@ -3,16 +3,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.requireAdmin = exports.assertAccess = exports.requireRole = exports.requireAuth = void 0;
 const errors_1 = require("./errors");
 const requireAuth = (event) => {
-    const authorizer = event.requestContext?.authorizer;
-    if (!authorizer?.userId) {
-        throw new errors_1.UnauthorizedError('Missing authorization context');
+    const claims = event.requestContext?.authorizer?.jwt?.claims;
+    if (!claims?.sub) {
+        throw new errors_1.UnauthorizedError('Missing JWT claims');
     }
-    const roles = authorizer.roles ? authorizer.roles.split(',') : [];
+    const groups = claims['cognito:groups']?.split(',') || [];
     return {
-        userId: authorizer.userId,
-        vendorId: authorizer.vendorId || '',
-        roles,
-        email: authorizer.email || ''
+        userId: claims.sub,
+        vendorId: claims['custom:vendor_id'] || '',
+        roles: groups,
+        email: claims.email || ''
     };
 };
 exports.requireAuth = requireAuth;
