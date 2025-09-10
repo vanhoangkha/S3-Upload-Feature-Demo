@@ -1,0 +1,33 @@
+# AWS Region
+aws_region = "us-east-1"
+
+# Environment
+environment = "dev"
+
+# Project Name
+project_name = "docs-management"
+
+# CORS Configuration
+cors_allowed_origins = [
+  "http://localhost:3000"
+]
+
+# Cognito Password Policy
+cognito_password_policy = {
+  minimum_length    = 8
+  require_lowercase = true
+  require_numbers   = true
+  require_symbols   = false
+  require_uppercase = true
+}
+
+# S3 Configuration
+s3_bucket_suffix = "2026"
+enable_s3_versioning = true
+
+# Lambda Configuration
+lambda_timeout = 30
+lambda_memory_size = 512
+
+# DynamoDB Configuration
+enable_dynamodb_point_in_time_recovery = false

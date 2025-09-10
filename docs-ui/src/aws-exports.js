@@ -1,12 +1,9 @@
-// AWS Amplify Configuration
-// This file will be updated with actual values after infrastructure deployment
-
 const awsmobile = {
-  "aws_project_region": "us-east-1",
-  "aws_cognito_identity_pool_id": "", // Identity pool not used for this app
-  "aws_cognito_region": "us-east-1",
-  "aws_user_pools_id": "us-east-1_AgJBt2IMm", // From deployed infrastructure
-  "aws_user_pools_web_client_id": "1tjimuifl8ssq5cflm77lab31s", // From deployed infrastructure
+  "aws_project_region": process.env.REACT_APP_AWS_REGION || "us-east-1",
+  "aws_cognito_identity_pool_id": process.env.REACT_APP_IDENTITY_POOL_ID || "",
+  "aws_cognito_region": process.env.REACT_APP_AWS_REGION || "us-east-1",
+  "aws_user_pools_id": process.env.REACT_APP_USER_POOL_ID || "",
+  "aws_user_pools_web_client_id": process.env.REACT_APP_USER_POOL_CLIENT_ID || "",
   "aws_cognito_username_attributes": ["email"],
   "aws_cognito_social_providers": [],
   "aws_cognito_signup_attributes": ["email"],
@@ -22,8 +19,8 @@ const awsmobile = {
   },
   "aws_cognito_verification_mechanisms": ["EMAIL"],
   "oauth": {},
-  "aws_user_files_s3_bucket": "vibdmswebstore2026", // From deployed infrastructure
-  "aws_user_files_s3_bucket_region": "us-east-1"
+  "aws_user_files_s3_bucket": process.env.REACT_APP_S3_BUCKET || "",
+  "aws_user_files_s3_bucket_region": process.env.REACT_APP_AWS_REGION || "us-east-1"
 };
 
 export default awsmobile;
