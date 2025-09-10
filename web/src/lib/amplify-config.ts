@@ -5,14 +5,17 @@ const amplifyConfig = {
     Cognito: {
       userPoolId: 'us-east-1_GcPiggAiS',
       userPoolClientId: '5kpfm8nfp48dkinpphvlhm6fqv',
+      region: 'us-east-1',
       loginWith: {
         oauth: {
-          domain: 'dms-dev-9jnusleq.auth.us-east-1.amazoncognito.com',
+          domain: 'https://dms-dev-9jnusleq.auth.us-east-1.amazoncognito.com',
           scopes: ['email', 'openid', 'profile'],
-          redirectSignIn: [`${window.location.origin}/auth/callback`],
-          redirectSignOut: [window.location.origin],
+          redirectSignIn: ['https://d1ljyycpkoybvj.cloudfront.net/auth/callback'],
+          redirectSignOut: ['https://d1ljyycpkoybvj.cloudfront.net'],
           responseType: 'code'
-        }
+        },
+        email: true,
+        username: true
       }
     }
   }

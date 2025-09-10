@@ -7,55 +7,74 @@ const validation_1 = require("../lib/validation");
 const errors_1 = require("../lib/errors");
 const logger_1 = require("../lib/logger");
 const audit_1 = require("../lib/audit");
+const security_1 = require("../lib/security");
 const cognitoClient = new client_cognito_identity_provider_1.CognitoIdentityProviderClient({ region: 'us-east-1' });
 const USER_POOL_ID = process.env.USER_POOL_ID || '';
 const handler = async (event) => {
     const startTime = Date.now();
     const requestId = event.requestContext.requestId;
     try {
-        const auth = (0, auth_1.requireAdmin)(event);
-        const userId = event.pathParameters?.id;
+        const validatedEvent = (0, security_1.sanitizeEvent)(event);
+        const auth = (0, auth_1.requireAdmin)(validatedEvent);
+        const userId = validatedEvent.pathParameters?.id;
         if (!userId) {
             throw new errors_1.NotFoundError('User ID is required');
         }
-        const body = JSON.parse(event.body || '{}');
+        const body = (0, security_1.safeJsonParse)(validatedEvent.body);
         const input = (0, validation_1.validateInput)(validation_1.updateRolesSchema, body);
-        if (input.vendor_id) {
-            const updateCommand = new client_cognito_identity_provider_1.AdminUpdateUserAttributesCommand({
-                UserPoolId: USER_POOL_ID,
-                Username: userId,
-                UserAttributes: [
-                    { Name: 'custom:vendor_id', Value: input.vendor_id }
-                ]
-            });
-            await cognitoClient.send(updateCommand);
+        const validGroups = ['Admin', 'Vendor', 'User'];
+        const invalidGroups = input.groups.filter(g => !validGroups.includes(g));
+        if (invalidGroups.length > 0) {
+            throw new errors_1.BadRequestError(`Invalid groups: ${invalidGroups.join(', ')}`);
         }
-        const listGroupsCommand = new client_cognito_identity_provider_1.AdminListGroupsForUserCommand({
+        const currentGroups = await cognitoClient.send(new client_cognito_identity_provider_1.AdminListGroupsForUserCommand({
             UserPoolId: USER_POOL_ID,
             Username: userId
-        });
-        const currentGroups = await cognitoClient.send(listGroupsCommand);
-        for (const group of currentGroups.Groups || []) {
-            const removeCommand = new client_cognito_identity_provider_1.AdminRemoveUserFromGroupCommand({
-                UserPoolId: USER_POOL_ID,
-                Username: userId,
-                GroupName: group.GroupName
-            });
-            await cognitoClient.send(removeCommand);
+        }));
+        try {
+            if (input.vendor_id) {
+                await cognitoClient.send(new client_cognito_identity_provider_1.AdminUpdateUserAttributesCommand({
+                    UserPoolId: USER_POOL_ID,
+                    Username: userId,
+                    UserAttributes: [
+                        { Name: 'custom:vendor_id', Value: input.vendor_id }
+                    ]
+                }));
+            }
+            for (const group of currentGroups.Groups || []) {
+                await cognitoClient.send(new client_cognito_identity_provider_1.AdminRemoveUserFromGroupCommand({
+                    UserPoolId: USER_POOL_ID,
+                    Username: userId,
+                    GroupName: group.GroupName
+                }));
+            }
+            for (const group of input.groups) {
+                await cognitoClient.send(new client_cognito_identity_provider_1.AdminAddUserToGroupCommand({
+                    UserPoolId: USER_POOL_ID,
+                    Username: userId,
+                    GroupName: group
+                }));
+            }
         }
-        for (const group of input.groups) {
-            const addCommand = new client_cognito_identity_provider_1.AdminAddUserToGroupCommand({
-                UserPoolId: USER_POOL_ID,
-                Username: userId,
-                GroupName: group
-            });
-            await cognitoClient.send(addCommand);
+        catch (error) {
+            for (const group of currentGroups.Groups || []) {
+                try {
+                    await cognitoClient.send(new client_cognito_identity_provider_1.AdminAddUserToGroupCommand({
+                        UserPoolId: USER_POOL_ID,
+                        Username: userId,
+                        GroupName: group.GroupName
+                    }));
+                }
+                catch (rollbackError) {
+                    logger_1.logger.error('Rollback failed', { userId, group: group.GroupName, error: rollbackError });
+                }
+            }
+            throw error;
         }
-        const signOutCommand = new client_cognito_identity_provider_1.AdminUserGlobalSignOutCommand({
+        await cognitoClient.send(new client_cognito_identity_provider_1.AdminUserGlobalSignOutCommand({
             UserPoolId: USER_POOL_ID,
             Username: userId
-        });
-        await cognitoClient.send(signOutCommand);
+        }));
         await (0, audit_1.auditLog)({
             actor: auth,
             action: 'user.role_change',
@@ -75,16 +94,12 @@ const handler = async (event) => {
             result: 'success',
             latency_ms: Date.now() - startTime
         });
-        return {
-            statusCode: 200,
-            body: JSON.stringify({ success: true }),
-            headers: {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS'
-            }
-        };
+        return (0, security_1.createSafeResponse)(200, {
+            success: true,
+            userId,
+            newGroups: input.groups,
+            updatedAt: new Date().toISOString()
+        });
     }
     catch (error) {
         logger_1.logger.error('Update roles failed', {

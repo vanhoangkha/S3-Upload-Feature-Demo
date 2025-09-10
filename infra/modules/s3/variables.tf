@@ -1,10 +1,11 @@
-variable "app_name" {
-  description = "Application name"
-  type        = string
+variable "enable_cross_region_replication" {
+  description = "Enable cross-region replication for S3 buckets"
+  type        = bool
+  default     = false
 }
 
-variable "env" {
-  description = "Environment"
+variable "name_prefix" {
+  description = "Prefix for resource names"
   type        = string
 }
 
@@ -14,7 +15,7 @@ variable "kms_key_id" {
 }
 
 variable "tags" {
-  description = "Tags to apply to resources"
+  description = "Resource tags"
   type        = map(string)
   default     = {}
 }

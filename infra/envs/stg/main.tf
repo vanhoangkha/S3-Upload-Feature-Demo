@@ -24,14 +24,14 @@ terraform {
 # Use the same configuration as dev but with different variables
 module "dms" {
   source = "../dev"
-  
+
   # Override variables for staging
   env = "stg"
-  
+
   cognito_callback_urls = [
     "https://stg.example.com/auth/callback"
   ]
-  
+
   cognito_logout_urls = [
     "https://stg.example.com/auth/logout"
   ]

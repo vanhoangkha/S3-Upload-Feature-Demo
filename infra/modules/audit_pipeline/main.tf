@@ -10,30 +10,31 @@ resource "aws_kinesis_firehose_delivery_stream" "audit_stream" {
   }
 
   extended_s3_configuration {
-    role_arn   = aws_iam_role.firehose.arn
-    bucket_arn = "arn:aws:s3:::${var.s3_bucket_name}"
-    prefix     = "audit-logs/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/"
-    
-    buffering_size     = 5
+    role_arn            = aws_iam_role.firehose.arn
+    bucket_arn          = "arn:aws:s3:::${var.s3_bucket_name}"
+    prefix              = "audit-logs/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/"
+    error_output_prefix = "errors/"
+
+    buffering_size     = 64
     buffering_interval = 300
-    
-    compression_format = "GZIP"
-    
+
+    compression_format = "UNCOMPRESSED"
+
     data_format_conversion_configuration {
       enabled = true
-      
+
       input_format_configuration {
         deserializer {
           open_x_json_ser_de {}
         }
       }
-      
+
       output_format_configuration {
         serializer {
           parquet_ser_de {}
         }
       }
-      
+
       schema_configuration {
         database_name = aws_glue_catalog_database.audit.name
         table_name    = aws_glue_catalog_table.audit.name
@@ -54,13 +55,13 @@ resource "aws_kinesis_firehose_delivery_stream" "audit_stream" {
 # Lambda function to process DynamoDB Stream
 resource "aws_lambda_function" "stream_processor" {
   function_name                  = "${var.app_name}-${var.env}-audit-stream-processor"
-  role                          = aws_iam_role.stream_processor.arn
+  role                           = aws_iam_role.stream_processor.arn
   reserved_concurrent_executions = 5
-  kms_key_arn                   = var.kms_key_arn
-  
+  kms_key_arn                    = var.kms_key_arn
+
   package_type = "Zip"
   filename     = data.archive_file.stream_processor.output_path
-  
+
   handler = "index.handler"
   runtime = "nodejs18.x"
   timeout = 60
@@ -87,7 +88,7 @@ resource "aws_lambda_event_source_mapping" "audit_stream" {
   event_source_arn  = var.audit_stream_arn
   function_name     = aws_lambda_function.stream_processor.arn
   starting_position = "LATEST"
-  
+
   batch_size = 10
 }
 
@@ -147,17 +148,17 @@ resource "aws_glue_catalog_table" "audit" {
 resource "aws_cloudwatch_log_group" "firehose" {
   name              = "/aws/kinesisfirehose/${var.app_name}-${var.env}-audit-stream"
   retention_in_days = 365
-  kms_key_id        = var.kms_key_arn
-  tags              = var.tags
+  # kms_key_id        = var.kms_key_arn  # Temporarily disabled due to permissions
+  tags = var.tags
 }
 
 # Stream processor Lambda code
 data "archive_file" "stream_processor" {
   type        = "zip"
   output_path = "/tmp/stream_processor.zip"
-  
+
   source {
-    content = <<EOF
+    content  = <<EOF
 const AWS = require('aws-sdk');
 const firehose = new AWS.Firehose();
 
@@ -291,8 +292,8 @@ resource "aws_iam_role_policy_attachment" "stream_processor_xray" {
 resource "aws_sqs_queue" "stream_processor_dlq" {
   name                      = "${var.app_name}-${var.env}-stream-processor-dlq"
   message_retention_seconds = 1209600 # 14 days
-  kms_master_key_id        = var.kms_key_arn
-  tags                     = var.tags
+  kms_master_key_id         = var.kms_key_arn
+  tags                      = var.tags
 }
 
 resource "aws_iam_role_policy" "stream_processor" {

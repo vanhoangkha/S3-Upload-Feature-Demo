@@ -1,189 +1,103 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
-  ContentLayout,
-  Header,
-  SpaceBetween,
   Container,
+  Header,
   Table,
-  Alert,
   Box,
   Badge,
   StatusIndicator,
-  Pagination
+  SpaceBetween
 } from '@cloudscape-design/components';
-import { useAuth } from '../contexts/AuthContext';
-import { apiClient } from '../lib/api';
+import { apiClient } from '../services/api';
 
-interface AuditLog {
-  timestamp: string;
-  actor: string;
-  action: string;
-  resource: string;
-  details: any;
-  ip_address?: string;
-  user_agent?: string;
-}
+const AuditPage: React.FC = () => {
+  const { data: auditData, isLoading } = useQuery({
+    queryKey: ['audit-logs'],
+    queryFn: () => apiClient.getAuditLogs(),
+  });
 
-export const AuditPage: React.FC = () => {
-  const [logs, setLogs] = useState<AuditLog[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const { token, hasRole } = useAuth();
-
-  const pageSize = 20;
-
-  useEffect(() => {
-    if (token && hasRole('Admin')) {
-      apiClient.setToken(token);
-      loadAuditLogs();
-    }
-  }, [token, currentPage]);
-
-  const loadAuditLogs = async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.getAuditLogs({
-        limit: pageSize,
-        offset: (currentPage - 1) * pageSize
-      });
-      setLogs(response.logs || []);
-      setTotalPages(Math.ceil((response.logs?.length || 0) / pageSize));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load audit logs');
-    } finally {
-      setLoading(false);
-    }
+  const getActionBadge = (action: string) => {
+    if (action.includes('create')) return <Badge color="green">{action}</Badge>;
+    if (action.includes('update')) return <Badge color="blue">{action}</Badge>;
+    if (action.includes('delete')) return <Badge color="red">{action}</Badge>;
+    if (action.includes('read') || action.includes('list')) return <Badge color="grey">{action}</Badge>;
+    return <Badge>{action}</Badge>;
   };
 
-  const getActionBadgeColor = (action: string) => {
-    if (action.includes('create')) return 'green';
-    if (action.includes('update')) return 'blue';
-    if (action.includes('delete')) return 'red';
-    if (action.includes('login') || action.includes('auth')) return 'grey';
-    return 'blue';
+  const getResultIndicator = (result: string) => {
+    switch (result) {
+      case 'success':
+        return <StatusIndicator type="success">Success</StatusIndicator>;
+      case 'error':
+        return <StatusIndicator type="error">Error</StatusIndicator>;
+      case 'denied':
+        return <StatusIndicator type="error">Access Denied</StatusIndicator>;
+      default:
+        return <StatusIndicator type="pending">{result}</StatusIndicator>;
+    }
   };
-
-  if (!hasRole('Admin')) {
-    return (
-      <ContentLayout>
-        <Alert type="error">
-          Access denied. Admin role required to view audit logs.
-        </Alert>
-      </ContentLayout>
-    );
-  }
 
   return (
-    <ContentLayout
-      header={
-        <Header
-          variant="h1"
-          description="View system audit logs and user activities"
-        >
-          Audit Logs
-        </Header>
-      }
-    >
-      <SpaceBetween size="l">
-        {error && (
-          <Alert type="error" dismissible onDismiss={() => setError(null)}>
-            {error}
-          </Alert>
-        )}
+    <SpaceBetween size="l">
+      <Header 
+        variant="h1" 
+        description="System audit logs and activity monitoring"
+      >
+        Audit Logs
+      </Header>
 
-        <Container>
-          <Table
-            columnDefinitions={[
-              {
-                id: 'timestamp',
-                header: 'Timestamp',
-                cell: (item: AuditLog) => new Date(item.timestamp).toLocaleString(),
-                sortingField: 'timestamp'
-              },
-              {
-                id: 'actor',
-                header: 'User',
-                cell: (item: AuditLog) => item.actor
-              },
-              {
-                id: 'action',
-                header: 'Action',
-                cell: (item: AuditLog) => (
-                  <Badge color={getActionBadgeColor(item.action)}>
-                    {item.action}
-                  </Badge>
-                )
-              },
-              {
-                id: 'resource',
-                header: 'Resource',
-                cell: (item: AuditLog) => item.resource
-              },
-              {
-                id: 'details',
-                header: 'Details',
-                cell: (item: AuditLog) => (
-                  <Box fontSize="body-s">
-                    {typeof item.details === 'string' 
-                      ? item.details 
-                      : JSON.stringify(item.details).substring(0, 100) + '...'
-                    }
-                  </Box>
-                )
-              },
-              {
-                id: 'ip',
-                header: 'IP Address',
-                cell: (item: AuditLog) => item.ip_address || '-'
-              }
-            ]}
-            items={logs}
-            loading={loading}
-            sortingDisabled
-            empty={
-              <Box textAlign="center" color="inherit">
-                <b>No audit logs</b>
-                <Box padding={{ bottom: 's' }} variant="p" color="inherit">
-                  System activities will appear here.
-                </Box>
-              </Box>
-            }
-            pagination={
-              <Pagination
-                currentPageIndex={currentPage}
-                pagesCount={totalPages}
-                onChange={({ detail }) => setCurrentPage(detail.currentPageIndex)}
-              />
-            }
-          />
-        </Container>
-
-        {/* Summary Stats */}
-        <Container header={<Header variant="h2">Activity Summary</Header>}>
-          <SpaceBetween direction="horizontal" size="l">
-            <Box>
-              <Box variant="awsui-key-label">Total Events</Box>
-              <Box variant="awsui-value-large">{logs.length}</Box>
-            </Box>
-            <Box>
-              <Box variant="awsui-key-label">Unique Users</Box>
-              <Box variant="awsui-value-large">
-                {new Set(logs.map(log => log.actor)).size}
+      <Container>
+        <Table
+          columnDefinitions={[
+            {
+              id: 'timestamp',
+              header: 'Timestamp',
+              cell: (item: any) => new Date(item.timestamp).toLocaleString(),
+              sortingField: 'timestamp',
+            },
+            {
+              id: 'actor',
+              header: 'User',
+              cell: (item: any) => item.actor?.email || item.actor?.userId || 'Unknown',
+            },
+            {
+              id: 'action',
+              header: 'Action',
+              cell: (item: any) => getActionBadge(item.action),
+            },
+            {
+              id: 'resource',
+              header: 'Resource',
+              cell: (item: any) => item.resource || 'N/A',
+            },
+            {
+              id: 'result',
+              header: 'Result',
+              cell: (item: any) => getResultIndicator(item.result || 'success'),
+            },
+            {
+              id: 'details',
+              header: 'Details',
+              cell: (item: any) => item.details || item.message || 'N/A',
+            },
+          ]}
+          items={auditData?.logs || []}
+          loading={isLoading}
+          trackBy="timestamp"
+          sortingDescending
+          empty={
+            <Box textAlign="center" color="inherit">
+              <b>No audit logs</b>
+              <Box variant="p" color="inherit">
+                No audit logs to display.
               </Box>
             </Box>
-            <Box>
-              <Box variant="awsui-key-label">Actions Today</Box>
-              <Box variant="awsui-value-large">
-                {logs.filter(log => 
-                  new Date(log.timestamp).toDateString() === new Date().toDateString()
-                ).length}
-              </Box>
-            </Box>
-          </SpaceBetween>
-        </Container>
-      </SpaceBetween>
-    </ContentLayout>
+          }
+        />
+      </Container>
+    </SpaceBetween>
   );
 };
+
+export default AuditPage;

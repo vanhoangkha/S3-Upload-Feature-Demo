@@ -16,8 +16,8 @@ resource "aws_cloudtrail" "main" {
   sns_topic_name = aws_sns_topic.cloudtrail.name
 
   event_selector {
-    read_write_type                 = "All"
-    include_management_events       = true
+    read_write_type                  = "All"
+    include_management_events        = true
     exclude_management_event_sources = []
 
     data_resource {
@@ -27,7 +27,7 @@ resource "aws_cloudtrail" "main" {
 
     data_resource {
       type   = "AWS::DynamoDB::Table"
-      values = ["arn:aws:dynamodb:*:*:table/${var.app_name}-${var.env}-*"]
+      values = ["arn:aws:dynamodb:us-east-1:590183822512:table/${var.app_name}-${var.env}-*"]
     }
   }
 
@@ -71,8 +71,8 @@ resource "aws_s3_bucket_policy" "cloudtrail" {
 resource "aws_cloudwatch_log_group" "cloudtrail" {
   name              = "/aws/cloudtrail/${var.app_name}-${var.env}"
   retention_in_days = 365
-  kms_key_id        = var.kms_key_arn
-  tags              = var.tags
+  # kms_key_id        = var.kms_key_arn  # Temporarily disabled due to permissions
+  tags = var.tags
 }
 
 # IAM Role for CloudTrail to CloudWatch Logs

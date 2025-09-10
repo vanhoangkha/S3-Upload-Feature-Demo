@@ -24,15 +24,15 @@ terraform {
 # Use the same configuration as dev but with different variables
 module "dms" {
   source = "../dev"
-  
+
   # Override variables for production
-  env = "prod"
+  env       = "prod"
   log_level = "warn"
-  
+
   cognito_callback_urls = [
     "https://app.example.com/auth/callback"
   ]
-  
+
   cognito_logout_urls = [
     "https://app.example.com/auth/logout"
   ]

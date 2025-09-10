@@ -1,61 +1,39 @@
-output "logs_bucket_name" {
-  description = "Logs S3 bucket name"
-  value       = module.s3.logs_bucket_name
+# API Gateway Outputs
+output "api_gateway_url" {
+  description = "API Gateway base URL with stage"
+  value       = module.apigateway.api_base_url
 }
 
-output "firehose_stream_name" {
-  description = "Kinesis Firehose delivery stream name"
-  value       = module.audit_pipeline.firehose_stream_name
+output "api_gateway_id" {
+  description = "API Gateway ID"
+  value       = module.apigateway.api_id
 }
 
-output "glue_database_name" {
-  description = "Glue database name for audit analytics"
-  value       = module.audit_pipeline.glue_database_name
-}
-
-output "sns_alerts_topic" {
-  description = "SNS topic ARN for alerts"
-  value       = module.monitoring.sns_topic_arn
-}
-
-output "user_pool_id" {
+# Cognito Outputs
+output "cognito_user_pool_id" {
   description = "Cognito User Pool ID"
   value       = module.cognito.user_pool_id
 }
 
-output "user_pool_client_id" {
+output "cognito_client_id" {
   description = "Cognito User Pool Client ID"
   value       = module.cognito.user_pool_client_id
 }
 
-output "cognito_issuer" {
-  description = "Cognito issuer URL"
-  value       = module.cognito.cognito_issuer
-}
-
 output "cognito_domain" {
-  description = "Cognito domain URL"
+  description = "Cognito Hosted UI Domain"
   value       = module.cognito.cognito_domain
 }
 
-output "api_base_url" {
-  description = "API Gateway base URL"
-  value       = module.apigateway.api_base_url
-}
-
-output "docs_bucket_name" {
-  description = "Documents S3 bucket name"
-  value       = module.s3.docs_bucket_name
-}
-
-output "web_bucket_name" {
-  description = "Web S3 bucket name"
-  value       = module.s3.web_bucket_name
-}
-
+# CloudFront Outputs
 output "cloudfront_domain" {
-  description = "CloudFront distribution domain"
+  description = "CloudFront distribution domain name"
   value       = module.cloudfront.domain_name
+}
+
+output "cloudfront_url" {
+  description = "CloudFront distribution URL"
+  value       = "https://${module.cloudfront.domain_name}"
 }
 
 output "cloudfront_distribution_id" {
@@ -63,22 +41,47 @@ output "cloudfront_distribution_id" {
   value       = module.cloudfront.distribution_id
 }
 
-output "documents_table_name" {
-  description = "DynamoDB documents table name"
-  value       = module.dynamodb.documents_table_name
+# S3 Outputs
+output "web_bucket_name" {
+  description = "S3 bucket for web assets"
+  value       = module.s3.web_bucket_name
 }
 
-output "audits_table_name" {
-  description = "DynamoDB audits table name"
-  value       = module.dynamodb.audits_table_name
+output "docs_bucket_name" {
+  description = "S3 bucket for documents"
+  value       = module.s3.docs_bucket_name
 }
 
-output "kms_key_id" {
-  description = "KMS key ID"
-  value       = module.kms.key_id
+output "logs_bucket_name" {
+  description = "S3 bucket for logs"
+  value       = module.s3.logs_bucket_name
 }
 
+output "s3_bucket_arns" {
+  description = "ARNs of all S3 buckets"
+  value = {
+    docs = module.s3.docs_bucket_arn
+    web  = module.s3.web_bucket_arn
+    logs = module.s3.logs_bucket_arn
+  }
+}
+
+# Lambda Outputs
+output "lambda_function_arns" {
+  description = "ARNs of Lambda functions"
+  value = {
+    for k, v in module.lambda_functions : k => v.function_arn
+  }
+}
+
+# ECR Output
 output "ecr_repository_url" {
   description = "ECR repository URL"
-  value       = module.ecr.ecr_repository_url
+  value       = module.ecr.repository_url
+}
+
+# KMS Output
+output "kms_key_arn" {
+  description = "KMS Key ARN"
+  value       = module.kms.key_arn
 }

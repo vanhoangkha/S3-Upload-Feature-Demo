@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.logger = void 0;
+const security_1 = require("./security");
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 var LogLevel;
 (function (LogLevel) {
@@ -23,7 +24,7 @@ const log = (level, levelName, message, meta = {}) => {
         ts: new Date().toISOString(),
         level: levelName,
         message,
-        ...meta
+        ...(0, security_1.sanitizeForLog)(meta)
     };
     console.log(JSON.stringify(entry));
 };

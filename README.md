@@ -1,192 +1,181 @@
 # 🚀 Document Management System (DMS)
 
-Production-ready serverless document management system with RBAC, built on AWS.
+Production-ready serverless document management system with role-based access control, built on AWS.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![AWS](https://img.shields.io/badge/AWS-Serverless-orange.svg)](https://aws.amazon.com/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-4.9+-blue.svg)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://reactjs.org/)
+[![Terraform](https://img.shields.io/badge/Terraform-1.6+-623CE4.svg)](https://www.terraform.io/)
+
+## 🌟 Overview
+
+A comprehensive document management solution featuring secure file storage, role-based access control, and real-time audit logging. Built with modern serverless architecture on AWS for scalability and cost-effectiveness.
+
+### ✨ Key Features
+
+- 🔐 **Role-Based Access Control** - Admin, Vendor, and User roles with granular permissions
+- 📁 **Secure Document Storage** - S3 with KMS encryption and versioning
+- 🔍 **Real-time Audit Logging** - Complete activity tracking with analytics
+- 🚀 **Serverless Architecture** - Auto-scaling Lambda functions with container deployment
+- 🎨 **Modern UI** - React with AWS Cloudscape Design System
+- 🏗️ **Infrastructure as Code** - 100% Terraform with multi-environment support
+- 📊 **Monitoring & Analytics** - CloudWatch dashboards and Athena queries
 
 ## 🏗️ Architecture
 
-- **Identity**: Amazon Cognito User Pool with RBAC (Admin/Vendor/User)
-- **API**: API Gateway HTTP API + Lambda (Node.js 20, TypeScript, Container)
-- **Storage**: S3 (documents) + DynamoDB (metadata) + KMS encryption
-- **Frontend**: React + AWS Cloudscape Design System
-- **Infrastructure**: Terraform (100% us-east-1)
-- **Observability**: CloudTrail + CloudWatch + DynamoDB Streams → Firehose → Athena
-
-## 🔐 Role-Based Access Control
-
-- **Admin**: Full system access, user management, audit logs
-- **Vendor**: Access to vendor's documents and users  
-- **User**: Access to own documents only
-
-## 📁 Project Structure
-
 ```
-S3-Upload-Feature-Demo/
-├── infra/                    # 🏗️ Terraform Infrastructure
-│   ├── modules/             # Reusable modules (cognito, apigw, lambda, etc.)
-│   └── envs/               # Environment configs (dev/stg/prod)
-├── api/                     # 🚀 Lambda Backend (TypeScript)
-│   ├── src/
-│   │   ├── handlers/       # Lambda function handlers
-│   │   └── lib/           # Shared libraries (auth, db, s3, etc.)
-│   ├── tests/              # Unit & integration tests
-│   └── Dockerfile          # Container image for ECR
-├── web/                     # 🎨 React Frontend
-│   ├── src/
-│   │   ├── components/     # Cloudscape components
-│   │   ├── pages/         # Application pages
-│   │   ├── contexts/      # React contexts (auth, etc.)
-│   │   └── lib/          # API client, utilities
-│   └── public/            # Static assets
-├── docs/                    # 📖 Documentation
-│   ├── api/                # OpenAPI specifications
-│   ├── architecture/       # Architecture diagrams
-│   └── deployment/         # Deployment guides
-├── Makefile                # 🛠️ Build & deployment automation
-└── README.md               # This file
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│     Users       │    │    Frontend      │    │   API Layer     │
+│                 │    │                  │    │                 │
+│ • Admin         │───▶│ CloudFront CDN   │───▶│ API Gateway     │
+│ • Vendor        │    │ S3 Web Hosting   │    │ JWT Authorizer  │
+│ • User          │    │ React App        │    │                 │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+                                                        │
+                       ┌─────────────────┐             │
+                       │ Authentication  │◀────────────┘
+                       │                 │
+                       │ Cognito Pool    │
+                       │ Hosted UI       │
+                       │ Pre-token Gen   │
+                       └─────────────────┘
+                                │
+┌──────────────────────────────────────────────────────────────────┐
+│                    Lambda Functions (Container-based)            │
+│                                                                  │
+│ Document Ops:     File Ops:        Admin Ops:      Vendor Ops:  │
+│ • Create         • Presign Upload  • Create User   • Get Docs   │
+│ • Get            • Presign Download• List Users    • Get Users  │
+│ • Update         • List Versions   • Update Roles  • Get Stats  │
+│ • Delete                           • Sign Out                   │
+│ • List                             • Audit Logs                 │
+│ • Restore                                                       │
+└──────────────────────────────────────────────────────────────────┘
+                                │
+        ┌───────────────────────┼───────────────────────┐
+        │                       │                       │
+┌───────▼────────┐    ┌────────▼────────┐    ┌────────▼────────┐
+│   S3 Storage   │    │   DynamoDB      │    │   Monitoring    │
+│                │    │                 │    │                 │
+│ • Documents    │    │ • Metadata      │    │ • CloudWatch    │
+│ • KMS Encrypt  │    │ • Audit Logs    │    │ • Kinesis       │
+│ • Versioning   │    │ • User Data     │    │ • Athena        │
+└────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- AWS CLI configured with us-east-1 access
-- Terraform >= 1.6
-- Node.js 20+
-- Docker & Docker Compose
-- Make
 
-### 🌩️ **AWS Deployment (Production)**
+- **AWS CLI** configured with appropriate permissions
+- **Node.js** 20+ and npm
+- **Terraform** 1.6+
+- **Docker** (for local development)
+
+### 1. Clone & Setup
+
 ```bash
-# One-command deployment
-./deploy.sh dev
-
-# Or follow detailed guide
-# See DEPLOY.md for complete AWS deployment instructions
-```
-
-### 🐳 Local Development (Docker Compose)
-```bash
-# Start full local development environment
-make dev-up
-
-# Access applications
-# Web: http://localhost:3000
-# API: http://localhost:3001/v1
-
-# Stop environment
-make dev-down
-```
-
-### ☁️ AWS Deployment
-
-### 1. Setup Backend Infrastructure
-```bash
-# Setup Terraform backend (one-time)
+git clone <repository-url>
+cd document-management-system
 make setup
-
-# Initialize and deploy infrastructure
-make infra-init ENV=dev
-make infra-apply ENV=dev
 ```
 
-### 2. Deploy API
+### 2. Deploy to AWS
+
 ```bash
-# Install dependencies and build
-make api-install
-make api-build ENV=dev
+# Deploy to development environment
+make deploy ENV=dev
 
-# Deploy to Lambda
-make api-deploy ENV=dev
+# Deploy to production
+make deploy ENV=prod
 ```
 
-### 3. Deploy Frontend
+### 3. Access Application
+
+After deployment, get the CloudFront URL:
 ```bash
-# Install dependencies and build
-make web-install
-make web-build
-
-# Deploy to S3 + CloudFront
-make web-deploy ENV=dev
+make status ENV=dev
 ```
 
-### 4. Access Application
-```bash
-# Get application URL
-make infra-output ENV=dev
-# Look for 'cloudfront_domain' output
+## 📁 Project Structure
+
 ```
-
-## 📋 API Endpoints
-
-### Document Management
-- `GET /files` - List documents (with filtering, pagination)
-- `POST /files` - Create document metadata
-- `GET /files/{id}` - Get document details
-- `PATCH /files/{id}` - Update document (name, tags)
-- `DELETE /files/{id}` - Soft delete document
-- `POST /files/{id}/restore` - Restore deleted document
-- `GET /files/{id}/versions` - List document versions
-
-### File Operations
-- `POST /files/presign/upload` - Get presigned upload URL
-- `POST /files/presign/download` - Get presigned download URL
-
-### User Management (Admin Only)
-- `GET /admin/users` - List users
-- `POST /admin/users` - Create user
-- `POST /admin/users/{id}/roles` - Update user roles
-- `POST /admin/users/{id}/signout` - Force user signout
-
-### Audit & Monitoring
-- `GET /me` - Get current user info
-- `GET /admin/audits` - View audit logs (Admin only)
-
-## 🛡️ Security Features
-
-### Authentication & Authorization
-- **Cognito Hosted UI**: OAuth2 + PKCE flow
-- **JWT Tokens**: ID (10m), Access (60m), Refresh (30d)
-- **Role Injection**: Pre-token generation trigger adds roles & vendor_id
-- **RBAC Middleware**: Enforces access control on all endpoints
-
-### Data Protection
-- **S3 Encryption**: SSE-KMS with customer-managed keys
-- **DynamoDB Encryption**: SSE-KMS enabled
-- **TLS**: HTTPS only, deny non-TLS requests
-- **IAM**: Least-privilege permissions, resource-scoped policies
-
-### Audit & Compliance
-- **CloudTrail**: Management events across all regions
-- **Audit Logs**: All role changes and document operations
-- **DynamoDB Streams**: Real-time audit data to Firehose → S3 → Athena
-- **Access Logs**: API Gateway structured JSON logs
+document-management-system/
+├── 📋 Root Configuration
+│   ├── package.json              # Workspace configuration
+│   ├── Makefile                  # Build automation
+│   ├── .env.example             # Environment template
+│   └── docker-compose.yml       # Local development
+│
+├── 🚀 scripts/                  # Automation Scripts
+│   ├── deploy.sh               # Main deployment
+│   ├── setup-env.sh           # Environment setup
+│   └── cleanup.sh             # Resource cleanup
+│
+├── 🏗️ infra/                   # Infrastructure as Code
+│   ├── modules/                # Terraform modules
+│   │   ├── apigateway/        # API Gateway configuration
+│   │   ├── cognito/           # Authentication
+│   │   ├── lambda/            # Function definitions
+│   │   ├── s3/               # Storage buckets
+│   │   └── ...               # Other AWS services
+│   └── envs/                  # Environment configs
+│       ├── dev/              # Development
+│       ├── stg/              # Staging
+│       └── prod/             # Production
+│
+├── 🚀 api/                     # Backend Services
+│   ├── src/
+│   │   ├── handlers/         # Lambda functions
+│   │   ├── lib/             # Shared utilities
+│   │   └── types/           # TypeScript definitions
+│   ├── Dockerfile           # Container image
+│   └── package.json         # Dependencies
+│
+├── 🎨 web/                     # Frontend Application
+│   ├── src/
+│   │   ├── components/      # UI components
+│   │   ├── pages/          # Application pages
+│   │   ├── contexts/       # React contexts
+│   │   └── services/       # API clients
+│   └── package.json        # Dependencies
+│
+└── 📖 docs/                    # Documentation
+    ├── api/                  # API specifications
+    ├── architecture/         # System design
+    ├── deployment/          # Deployment guides
+    └── security/           # Security documentation
+```
 
 ## 🔧 Development
 
 ### Local Development
+
 ```bash
-# Start API in development mode
-make dev-api
-
-# Start web in development mode  
-make dev-web
-
-# Start both (parallel)
+# Start all services locally
 make dev
+
+# Start individual services
+make dev-api    # API server on :3001
+make dev-web    # Web app on :3000
 ```
 
-### Testing
+### Build & Test
+
 ```bash
-# Run all tests
+# Build everything
+make build
+
+# Run tests
 make test
 
-# Run API tests only
-make api-test
-
-# Run web tests only
-make web-test
+# Run security scans
+make security-scan
 ```
 
 ### Environment Management
+
 ```bash
 # Create new environment
 make create-env ENV=staging
@@ -198,129 +187,207 @@ make deploy ENV=staging
 make status ENV=staging
 ```
 
-## 📊 Monitoring & Observability
+## 🔐 Security & Compliance
 
-### Logs
-```bash
-# Tail Lambda function logs
-make logs-api ENV=dev
+### Authentication & Authorization
+- **Cognito User Pool** with hosted UI
+- **JWT tokens** with role-based claims
+- **Multi-factor authentication** support
+- **Session management** with refresh tokens
 
-# View all logs in CloudWatch
-aws logs describe-log-groups --log-group-name-prefix /aws/lambda/dms-dev
+### Data Protection
+- **KMS encryption** for all data at rest
+- **TLS 1.2+** for data in transit
+- **Presigned URLs** for secure file access
+- **IAM least-privilege** policies
+
+### Audit & Monitoring
+- **Complete audit trail** of all operations
+- **Real-time monitoring** with CloudWatch
+- **Automated alerting** for security events
+- **Compliance reporting** via Athena
+
+## 🎯 User Roles
+
+| Role | Permissions | Use Cases |
+|------|-------------|-----------|
+| **Admin** | Full system access, user management, audit logs | System administrators, IT managers |
+| **Vendor** | Vendor documents, vendor users, analytics | Business partners, suppliers |
+| **User** | Own documents only, profile management | End users, employees |
+
+## 📊 API Endpoints
+
+### Document Management
+```
+GET    /files              # List documents
+POST   /files              # Create document
+GET    /files/{id}         # Get document
+PATCH  /files/{id}         # Update document
+DELETE /files/{id}         # Delete document
+POST   /files/{id}/restore # Restore document
 ```
 
-### Metrics & Alarms
-- **Lambda**: Duration, errors, throttles
-- **API Gateway**: Request count, latency, 4xx/5xx errors
-- **DynamoDB**: Read/write capacity, throttles
-- **S3**: Request metrics, error rates
+### File Operations
+```
+POST   /files/presign/upload   # Get upload URL
+POST   /files/presign/download # Get download URL
+GET    /files/{id}/versions    # List versions
+```
 
-### Audit Queries (Athena)
-```sql
--- View recent document operations
-SELECT timestamp, actor, action, resource
-FROM audit_logs 
-WHERE action LIKE 'document.%'
-ORDER BY timestamp DESC
-LIMIT 100;
-
--- View role changes
-SELECT timestamp, actor, action, details
-FROM audit_logs
-WHERE action = 'user.role_change'
-ORDER BY timestamp DESC;
+### Administration
+```
+GET    /admin/users           # List users
+POST   /admin/users           # Create user
+POST   /admin/users/{id}/roles # Update roles
+GET    /admin/audits          # Audit logs
 ```
 
 ## 🚀 Deployment
 
-### Environments
-- **dev**: Development environment
-- **stg**: Staging environment
-- **prod**: Production environment
+### Environment Configuration
 
-### Full Deployment Pipeline
+1. **Development** (`dev`)
+   - Single AZ deployment
+   - Minimal resources
+   - Debug logging enabled
+
+2. **Staging** (`stg`)
+   - Production-like setup
+   - Performance testing
+   - Integration validation
+
+3. **Production** (`prod`)
+   - Multi-AZ deployment
+   - Auto-scaling enabled
+   - Enhanced monitoring
+
+### Deployment Commands
+
 ```bash
-# Deploy everything to production
+# Full deployment
 make deploy ENV=prod
-```
 
-### Individual Component Deployment
-```bash
 # Infrastructure only
-make infra-apply ENV=prod
+make deploy-infra ENV=prod
 
-# API only
-make api-deploy ENV=prod
-
-# Frontend only
-make web-deploy ENV=prod
+# Application only
+make deploy-api ENV=prod
+make deploy-web ENV=prod
 ```
 
 ### Rollback Strategy
+
 ```bash
-# Rollback infrastructure
-cd infra/envs/prod && terraform apply -target=module.lambda_functions
+# Infrastructure rollback
+cd infra/envs/prod
+terraform apply -target=module.previous_version
 
-# Rollback API (deploy previous image)
-# Update image tag in Lambda console or via CLI
+# Application rollback
+# Update image tags in Lambda console
+```
 
-# Rollback frontend
-aws s3 sync s3://backup-bucket/web-backup/ s3://dms-prod-web/
+## 📈 Monitoring
+
+### CloudWatch Dashboards
+- **System Overview** - Key metrics and health
+- **Performance** - Latency and throughput
+- **Security** - Authentication and access patterns
+- **Cost** - Resource utilization and billing
+
+### Alerts & Notifications
+- **Error rates** > 1%
+- **Response time** > 5 seconds
+- **Failed authentications** > 10/minute
+- **Storage quota** > 80%
+
+### Log Analysis
+```bash
+# View API logs
+make logs-api ENV=prod
+
+# Query audit logs (Athena)
+SELECT * FROM audit_logs 
+WHERE action = 'document.create' 
+AND timestamp > current_timestamp - interval '1' day
 ```
 
 ## 🔍 Troubleshooting
 
 ### Common Issues
 
-1. **Lambda Cold Starts**
-   - Enable provisioned concurrency for critical functions
-   - Optimize container image size
-
-2. **DynamoDB Throttling**
-   - Monitor read/write capacity metrics
-   - Consider on-demand billing for variable workloads
-
-3. **S3 Access Denied**
-   - Check IAM permissions for Lambda roles
-   - Verify S3 bucket policy allows Lambda access
-
-4. **Cognito Token Issues**
-   - Check token expiration times
-   - Verify JWT authorizer configuration in API Gateway
-
-### Debug Commands
+**Authentication Errors**
 ```bash
-# Check Lambda function status
-aws lambda get-function --function-name dms-dev-createDocument
+# Check Cognito configuration
+aws cognito-idp describe-user-pool --user-pool-id <pool-id>
 
-# View API Gateway logs
-aws logs filter-log-events --log-group-name /aws/apigateway/dms-dev-api
-
-# Test presigned URLs
-curl -X POST https://api.example.com/files/presign/upload \
-  -H "Authorization: Bearer $JWT_TOKEN" \
-  -d '{"vendorId":"vendor1","userId":"user1","filename":"test.pdf","contentType":"application/pdf"}'
+# Verify JWT tokens
+# Check token expiration and claims
 ```
 
-## 📖 Documentation
+**API Gateway Timeouts**
+```bash
+# Check Lambda function logs
+aws logs filter-log-events --log-group-name /aws/lambda/dms-prod-api
 
-- [API Documentation](docs/api/openapi.yaml)
-- [Architecture Overview](docs/architecture/README.md)
-- [Deployment Guide](docs/deployment/README.md)
-- [Security Guide](docs/security/README.md)
-- [Runbook](docs/runbook/README.md)
+# Monitor function duration and memory usage
+```
+
+**S3 Access Denied**
+```bash
+# Verify IAM permissions
+aws iam simulate-principal-policy --policy-source-arn <role-arn> --action-names s3:GetObject
+
+# Check bucket policies
+aws s3api get-bucket-policy --bucket <bucket-name>
+```
+
+### Debug Commands
+
+```bash
+# Check infrastructure status
+make status ENV=prod
+
+# View recent deployments
+aws cloudformation describe-stacks --stack-name dms-prod
+
+# Test API endpoints
+curl -H "Authorization: Bearer $TOKEN" https://api.example.com/files
+```
 
 ## 🤝 Contributing
 
-1. Follow TypeScript/React best practices
-2. Add tests for new features
-3. Update documentation
-4. Use conventional commits
-5. Ensure security best practices
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
+4. **Push** to the branch (`git push origin feature/amazing-feature`)
+5. **Open** a Pull Request
+
+### Development Guidelines
+- Follow **TypeScript** best practices
+- Add **tests** for new features
+- Update **documentation**
+- Use **conventional commits**
+- Ensure **security** compliance
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- **Documentation**: [docs/](docs/)
+- **Issues**: [GitHub Issues](https://github.com/your-org/document-management-system/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/your-org/document-management-system/discussions)
+
+## 🙏 Acknowledgments
+
+- **AWS** for serverless infrastructure
+- **Cloudscape Design System** for UI components
+- **Terraform** for infrastructure as code
+- **Open source community** for amazing tools
 
 ---
+
 **Built with ❤️ using AWS serverless technologies**
+
+*For detailed documentation, see the [docs/](docs/) directory.*

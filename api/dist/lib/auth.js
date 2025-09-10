@@ -3,30 +3,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.requireAdmin = exports.assertAccess = exports.requireRole = exports.requireAuth = void 0;
 const errors_1 = require("./errors");
 const requireAuth = (event) => {
-    let claims;
-    console.log('Event version:', event.version);
-    console.log('RequestContext:', JSON.stringify(event.requestContext, null, 2));
-    if ('version' in event && event.version === '2.0') {
-        claims = event.requestContext?.authorizer?.jwt?.claims;
+    const authorizer = event.requestContext?.authorizer;
+    if (!authorizer?.userId) {
+        throw new errors_1.UnauthorizedError('Missing authorization context');
     }
-    else {
-        claims = event.requestContext?.authorizer?.claims;
-    }
-    console.log('Extracted claims:', JSON.stringify(claims, null, 2));
-    if (!claims) {
-        throw new errors_1.UnauthorizedError('Missing JWT claims - token not validated by API Gateway');
-    }
-    let groups = [];
-    if (claims['cognito:groups']) {
-        groups = Array.isArray(claims['cognito:groups'])
-            ? claims['cognito:groups']
-            : [claims['cognito:groups']];
-    }
+    const roles = authorizer.roles ? authorizer.roles.split(',') : [];
     return {
-        userId: claims.sub,
-        vendorId: claims.vendor_id || claims['custom:vendor_id'] || '',
-        roles: groups,
-        email: claims.email
+        userId: authorizer.userId,
+        vendorId: authorizer.vendorId || '',
+        roles,
+        email: authorizer.email || ''
     };
 };
 exports.requireAuth = requireAuth;

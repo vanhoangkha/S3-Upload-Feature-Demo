@@ -1,109 +1,200 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from 'react-query';
-import { AppLayout } from '@cloudscape-design/components';
-import '@cloudscape-design/global-styles/index.css';
-
-import { AuthProvider } from './contexts/AuthContext';
-import { ErrorBoundary } from './components/ErrorBoundary';
-import { Navigation } from './components/Navigation';
-import { ProtectedRoute } from './components/ProtectedRoute';
-import { LoginPage } from './pages/LoginPage';
-import { DrivePage } from './pages/DrivePage';
-import { VendorPage } from './pages/VendorPage';
-import { AdminPage } from './pages/AdminPage';
-import { AuditPage } from './pages/AuditPage';
-import { DocumentVersionsPage } from './pages/DocumentVersionsPage';
-import { UserProfilePage } from './pages/UserProfilePage';
-import { RegisterPage } from './pages/RegisterPage';
-import { SelfRegisterPage } from './pages/SelfRegisterPage';
-import { AmplifyLoginPage } from './pages/AmplifyLoginPage';
-import AmplifyApp from './AmplifyApp';
-import { HybridDashboard } from './pages/HybridDashboard';
-import { SimpleReviewPage } from './pages/SimpleReviewPage';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-      staleTime: 5 * 60 * 1000, // 5 minutes
-    },
-  },
-});
+import React, { useEffect, useState } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AppLayout, TopNavigation, SideNavigation, Spinner, Box, Flashbar } from '@cloudscape-design/components';
+import { authService, User } from './services/auth';
+import LoginPage from './pages/LoginPage';
+import CallbackPage from './pages/CallbackPage';
+import DashboardPage from './pages/DashboardPage';
+import DocumentsPage from './pages/DocumentsPage';
+import DocumentVersionsPage from './pages/DocumentVersionsPage';
+import UsersPage from './pages/UsersPage';
+import AuditPage from './pages/AuditPage';
+import ProfilePage from './pages/ProfilePage';
+import VendorDashboardPage from './pages/VendorDashboardPage';
+import SystemHealthPage from './pages/SystemHealthPage';
+import DebugPage from './pages/DebugPage';
 
 function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const location = useLocation();
+
+  useEffect(() => {
+    const checkAuth = () => {
+      console.log('Checking authentication state...');
+      const currentUser = authService.getUser();
+      const isAuth = authService.isAuthenticated();
+      
+      console.log('Auth check result:', { currentUser, isAuth });
+      setUser(currentUser);
+      setIsLoading(false);
+    };
+    
+    checkAuth();
+  }, []);
+
+  const addNotification = (notification: any) => {
+    setNotifications(prev => [...prev, { ...notification, id: Date.now() }]);
+  };
+
+  const removeNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  console.log('App render:', { isLoading, user: !!user, pathname: location.pathname });
+
+  if (isLoading) {
+    return (
+      <Box textAlign="center" padding="xxl">
+        <Spinner size="large" />
+        <Box variant="p" padding={{ top: 'm' }}>
+          Loading...
+        </Box>
+      </Box>
+    );
+  }
+
+  // Handle OAuth callback
+  if (location.pathname === '/callback') {
+    return <CallbackPage onSuccess={() => {
+      console.log('Callback success, updating user state');
+      setUser(authService.getUser());
+      addNotification({
+        type: 'success',
+        header: 'Sign in successful',
+        content: 'Welcome to Document Management System',
+        dismissible: true
+      });
+    }} />;
+  }
+
+  // Show login page if not authenticated
+  if (!user) {
+    console.log('User not authenticated, showing login page');
+    return <LoginPage />;
+  }
+
+  console.log('User authenticated, showing main app');
+
+  const navigationItems = [
+    { type: 'link', text: 'Dashboard', href: '/' },
+    { type: 'divider' },
+    { type: 'link', text: 'Documents', href: '/documents' },
+    ...(user?.groups.includes('Vendor') && !user?.groups.includes('Admin')
+      ? [{ type: 'link', text: 'Vendor Dashboard', href: '/vendor' }] 
+      : []
+    ),
+    ...(user?.groups.includes('Admin') || user?.groups.includes('Vendor') 
+      ? [{ type: 'link', text: 'Users', href: '/users' }] 
+      : []
+    ),
+    ...(user?.groups.includes('Admin') 
+      ? [
+          { type: 'divider' },
+          { type: 'link', text: 'Audit Logs', href: '/audit' },
+          { type: 'link', text: 'System Health', href: '/health' },
+          { type: 'link', text: 'Debug', href: '/debug' }
+        ] 
+      : []
+    ),
+  ];
+
   return (
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <Router>
-            <Routes>
-              <Route path="/auth/login" element={<AmplifyLoginPage />} />
-              <Route path="/login" element={<AmplifyLoginPage />} />
-              <Route path="/auth/amplify" element={<AmplifyLoginPage />} />
-              <Route path="/amplify/*" element={<AmplifyApp />} />
-              <Route path="/auth/register" element={<RegisterPage />} />
-              <Route path="/auth/request-access" element={<SelfRegisterPage />} />
-              <Route path="/auth/callback" element={<LoginPage />} />
-              <Route
-                path="/*"
-                element={
-                  <ProtectedRoute>
-                    <AppLayout
-                      navigation={<Navigation />}
-                      content={
-                        <Routes>
-                          <Route path="/" element={<SimpleReviewPage />} />
-                          <Route 
-                            path="/drive" 
-                            element={
-                              <ProtectedRoute requiredPermission="canViewDocuments">
-                                <DrivePage />
-                              </ProtectedRoute>
-                            } 
-                          />
-                          <Route path="/review" element={<SimpleReviewPage />} />
-                          <Route path="/hybrid" element={<HybridDashboard />} />
-                          <Route path="/profile" element={<UserProfilePage />} />
-                          <Route path="/document/:id/versions" element={<DocumentVersionsPage />} />
-                          <Route 
-                            path="/vendor" 
-                            element={
-                              <ProtectedRoute requiredPermission="canViewVendorData">
-                                <VendorPage />
-                              </ProtectedRoute>
-                            } 
-                          />
-                          <Route 
-                            path="/admin" 
-                            element={
-                              <ProtectedRoute requiredPermission="canManageUsers">
-                                <AdminPage />
-                              </ProtectedRoute>
-                            } 
-                          />
-                          <Route 
-                            path="/audit" 
-                            element={
-                              <ProtectedRoute requiredPermission="canViewAuditLogs">
-                                <AuditPage />
-                              </ProtectedRoute>
-                            } 
-                          />
-                        </Routes>
-                      }
-                      navigationOpen={true}
-                      toolsHide={true}
-                    />
-                  </ProtectedRoute>
+    <AppLayout
+      headerSelector="#header"
+      navigation={
+        <SideNavigation
+          header={{ text: 'DMS', href: '/' }}
+          items={navigationItems}
+        />
+      }
+      notifications={
+        <Flashbar
+          items={notifications}
+          onDismiss={({ detail }) => removeNotification(detail.id)}
+        />
+      }
+      content={
+        <Routes>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/documents" element={<DocumentsPage />} />
+          <Route path="/documents/:documentId/versions" element={<DocumentVersionsPage />} />
+          <Route 
+            path="/vendor" 
+            element={
+              user?.groups.includes('Vendor') 
+                ? <VendorDashboardPage /> 
+                : <Navigate to="/" replace />
+            } 
+          />
+          <Route 
+            path="/users" 
+            element={
+              user?.groups.includes('Admin') || user?.groups.includes('Vendor') 
+                ? <UsersPage /> 
+                : <Navigate to="/" replace />
+            } 
+          />
+          <Route 
+            path="/audit" 
+            element={
+              user?.groups.includes('Admin') 
+                ? <AuditPage /> 
+                : <Navigate to="/" replace />
+            } 
+          />
+          <Route 
+            path="/health" 
+            element={
+              user?.groups.includes('Admin') 
+                ? <SystemHealthPage /> 
+                : <Navigate to="/" replace />
+            } 
+          />
+          <Route 
+            path="/debug" 
+            element={
+              user?.groups.includes('Admin') 
+                ? <DebugPage /> 
+                : <Navigate to="/" replace />
+            } 
+          />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      }
+      toolsHide
+      navigationOpen
+    >
+      <div id="header">
+        <TopNavigation
+          identity={{
+            href: '/',
+            title: 'Document Management System',
+          }}
+          utilities={[
+            {
+              type: 'menu-dropdown',
+              text: user?.username || 'User',
+              description: user?.email,
+              iconName: 'user-profile',
+              items: [
+                { id: 'profile', text: 'Profile' },
+                { id: 'logout', text: 'Sign out' },
+              ],
+              onItemClick: ({ detail }) => {
+                if (detail.id === 'logout') {
+                  authService.logout();
+                } else if (detail.id === 'profile') {
+                  window.location.href = '/profile';
                 }
-              />
-            </Routes>
-          </Router>
-        </AuthProvider>
-      </QueryClientProvider>
-    </ErrorBoundary>
+              },
+            },
+          ]}
+        />
+      </div>
+    </AppLayout>
   );
 }
 

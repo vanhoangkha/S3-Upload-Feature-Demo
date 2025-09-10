@@ -1,21 +1,16 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { requireAuth } from '../lib/auth';
-import { createSuccessResponse, createErrorResponse } from '../lib/errors';
+import { createErrorResponse } from '../lib/errors';
 import { logger } from '../lib/logger';
+import { sanitizeEvent, createSafeResponse } from '../lib/security';
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const startTime = Date.now();
   const requestId = event.requestContext.requestId;
 
   try {
-    // Debug: Log the entire event context
-    logger.info('WhoAmI debug - event context', {
-      requestId,
-      authorizer: event.requestContext.authorizer,
-      headers: event.headers
-    });
-
-    const auth = requireAuth(event);
+    const validatedEvent = sanitizeEvent(event);
+    const auth = requireAuth(validatedEvent);
 
     logger.info('Who am I request', {
       requestId,
@@ -23,12 +18,20 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       action: 'whoAmI'
     });
 
-    const response = {
+    const userInfo = {
       userId: auth.userId,
       vendorId: auth.vendorId,
       roles: auth.roles,
       email: auth.email || null,
-      username: auth.email?.split('@')[0] || auth.userId
+      username: auth.email?.split('@')[0] || auth.userId,
+      permissions: {
+        canViewDocuments: true,
+        canCreateDocuments: true,
+        canManageUsers: auth.roles.includes('Admin'),
+        canViewVendorData: auth.roles.includes('Admin') || auth.roles.includes('Vendor'),
+        canViewAuditLogs: auth.roles.includes('Admin')
+      },
+      lastLogin: new Date().toISOString()
     };
 
     logger.info('Who am I success', {
@@ -39,7 +42,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       latency_ms: Date.now() - startTime
     });
 
-    return createSuccessResponse(response);
+    return createSafeResponse(200, userInfo);
 
   } catch (error) {
     logger.error('Who am I failed', {
@@ -50,6 +53,6 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       latency_ms: Date.now() - startTime
     });
 
-    return createErrorResponse(error);
+    return createErrorResponse(error as Error);
   }
 };

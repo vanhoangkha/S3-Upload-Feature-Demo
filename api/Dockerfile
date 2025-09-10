@@ -10,6 +10,7 @@ RUN npm ci --only=production
 COPY dist/ ${LAMBDA_TASK_ROOT}/
 
 # Create handler files for each function
+RUN echo 'const { handler } = require("./handlers/jwtAuthorizer"); module.exports = { handler };' > ${LAMBDA_TASK_ROOT}/jwtAuthorizer.js
 RUN echo 'const { handler } = require("./handlers/createDocument"); module.exports = { handler };' > ${LAMBDA_TASK_ROOT}/createDocument.js
 RUN echo 'const { handler } = require("./handlers/getDocument"); module.exports = { handler };' > ${LAMBDA_TASK_ROOT}/getDocument.js
 RUN echo 'const { handler } = require("./handlers/listDocuments"); module.exports = { handler };' > ${LAMBDA_TASK_ROOT}/listDocuments.js

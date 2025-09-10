@@ -1,16 +1,17 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { requireAuth, assertAccess } from '../lib/auth';
-import { validateInput, listDocumentsSchema } from '../lib/validation';
-import { createErrorResponse, BadRequestError } from '../lib/errors';
+import { requireAuth } from '../lib/auth';
+import { createErrorResponse } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { queryDocumentsByUser, queryDocumentsByVendor } from '../lib/dynamodb';
+import { sanitizeEvent, createSafeResponse } from '../lib/security';
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const startTime = Date.now();
   const requestId = event.requestContext.requestId;
   
   try {
-    const auth = requireAuth(event);
+    const validatedEvent = sanitizeEvent(event);
+    const auth = requireAuth(validatedEvent);
     
     logger.info('List documents request', {
       requestId,
@@ -18,109 +19,41 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       action: 'listDocuments'
     });
 
-    const queryParams = event.queryStringParameters || {};
+    const query = validatedEvent.queryStringParameters || {};
+    const limit = parseInt((query as any).limit || '50');
+    const includeDeleted = (query as any).includeDeleted === 'true';
     
-    // Parse tags if provided
-    const parsedParams: any = { ...queryParams };
-    if (queryParams.tags) {
-      parsedParams.tags = Array.isArray(queryParams.tags) 
-        ? queryParams.tags 
-        : (queryParams.tags as string).split(',');
-    }
-
-    const query = validateInput(listDocumentsSchema, parsedParams);
-    
-    let exclusiveStartKey;
-    if (query.cursor) {
-      try {
-        exclusiveStartKey = JSON.parse(Buffer.from(query.cursor, 'base64').toString());
-      } catch {
-        throw new BadRequestError('Invalid cursor');
-      }
-    }
-
     let result;
     
-    if (query.scope === 'me') {
-      // List user's own documents
-      result = await queryDocumentsByUser(
-        auth.userId,
-        query.limit,
-        exclusiveStartKey,
-        query.includeDeleted
-      );
-    } else if (query.scope === 'vendor') {
-      // List all documents in vendor (requires Vendor or Admin role)
-      if (!auth.roles.includes('Vendor') && !auth.roles.includes('Admin')) {
-        throw new BadRequestError('Insufficient permissions for vendor scope');
-      }
-      
-      result = await queryDocumentsByVendor(
-        auth.vendorId,
-        query.limit,
-        exclusiveStartKey,
-        query.includeDeleted
-      );
+    // Admin can see all, Vendor sees vendor docs, User sees own docs
+    if (auth.roles.includes('Admin')) {
+      // For simplicity, admin sees vendor docs if vendorId provided
+      const vendorId = (query as any).vendorId || auth.vendorId;
+      result = await queryDocumentsByVendor(vendorId, limit, undefined, includeDeleted);
+    } else if (auth.roles.includes('Vendor')) {
+      result = await queryDocumentsByVendor(auth.vendorId, limit, undefined, includeDeleted);
     } else {
-      throw new BadRequestError('Invalid scope');
+      result = await queryDocumentsByUser(auth.userId, limit, undefined, includeDeleted);
     }
 
-    // Filter by search query if provided
-    let filteredItems = result.items;
-    if (query.q) {
-      const searchTerm = query.q.toLowerCase();
-      filteredItems = result.items.filter(doc => 
-        doc.name.toLowerCase().includes(searchTerm) ||
-        doc.tags.some(tag => tag.toLowerCase().includes(searchTerm))
-      );
-    }
-
-    // Filter by tags if provided
-    if (query.tags && query.tags.length > 0) {
-      filteredItems = filteredItems.filter(doc =>
-        query.tags!.some(tag => doc.tags.includes(tag))
-      );
-    }
-
-    // Generate next cursor if there are more results
-    let nextCursor;
-    if (result.lastEvaluatedKey) {
-      nextCursor = Buffer.from(JSON.stringify(result.lastEvaluatedKey)).toString('base64');
-    }
-
-    logger.info('Documents listed successfully', {
+    logger.info('List documents completed', {
       requestId,
-      actor: auth,
-      action: 'listDocuments',
-      result: 'success',
-      count: filteredItems.length,
-      latency_ms: Date.now() - startTime
+      count: result.documents?.length || 0,
+      duration: Date.now() - startTime
     });
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        items: filteredItems,
-        nextCursor,
-        total: filteredItems.length
-      }),
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-        'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS'
-      }
-    };
+    return createSafeResponse(200, {
+      documents: result.documents || [],
+      total: result.total || 0
+    });
 
   } catch (error) {
     logger.error('List documents failed', {
       requestId,
-      action: 'listDocuments',
-      result: 'error',
       error: error instanceof Error ? error.message : 'Unknown error',
-      latency_ms: Date.now() - startTime
+      duration: Date.now() - startTime
     });
 
-    return createErrorResponse(error as Error);
+    return createErrorResponse(error);
   }
 };

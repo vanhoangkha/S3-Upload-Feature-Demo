@@ -1,10 +1,5 @@
-variable "app_name" {
-  description = "Application name"
-  type        = string
-}
-
-variable "env" {
-  description = "Environment"
+variable "name_prefix" {
+  description = "Prefix for resource names"
   type        = string
 }
 
@@ -18,13 +13,8 @@ variable "logout_urls" {
   type        = list(string)
 }
 
-variable "pre_token_generation_lambda_arn" {
+variable "pre_token_lambda_arn" {
   description = "ARN of pre token generation Lambda"
-  type        = string
-}
-
-variable "pre_token_generation_lambda_name" {
-  description = "Name of pre token generation Lambda"
   type        = string
 }
 

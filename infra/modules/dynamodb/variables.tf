@@ -1,10 +1,5 @@
-variable "app_name" {
-  description = "Application name"
-  type        = string
-}
-
-variable "env" {
-  description = "Environment"
+variable "name_prefix" {
+  description = "Prefix for resource names"
   type        = string
 }
 

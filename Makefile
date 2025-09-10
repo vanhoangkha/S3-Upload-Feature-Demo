@@ -1,174 +1,169 @@
-.PHONY: help build test deploy clean setup
-.DEFAULT_GOAL := help
+# Document Management System - Build & Deployment Automation
+.PHONY: help setup clean build test deploy status logs
 
+# Default environment
 ENV ?= dev
-REGION := us-east-1
-AWS_ACCOUNT_ID := $(shell aws sts get-caller-identity --query Account --output text)
 
-help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+# Colors for output
+BLUE := \033[34m
+GREEN := \033[32m
+YELLOW := \033[33m
+RED := \033[31m
+NC := \033[0m # No Color
 
-setup: ## Setup Terraform backend
-	@echo "Setting up Terraform backend..."
-	aws s3 mb s3://dms-terraform-state-$(REGION) --region $(REGION) || true
-	aws s3api put-bucket-versioning --bucket dms-terraform-state-$(REGION) --versioning-configuration Status=Enabled
-	aws dynamodb create-table \
-		--table-name dms-terraform-locks \
-		--attribute-definitions AttributeName=LockID,AttributeType=S \
-		--key-schema AttributeName=LockID,KeyType=HASH \
-		--provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5 \
-		--region $(REGION) || true
+help: ## Show this help message
+	@echo "$(BLUE)Document Management System - Available Commands$(NC)"
+	@echo ""
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "$(GREEN)%-20s$(NC) %s\n", $$1, $$2}'
 
-# Infrastructure
-infra-init: ## Initialize Terraform backend
-	cd infra/envs/$(ENV) && terraform init
+# Setup & Installation
+setup: ## Setup development environment
+	@echo "$(BLUE)Setting up development environment...$(NC)"
+	./scripts/setup-env.sh
 
-infra-plan: ## Plan Terraform changes
-	cd infra/envs/$(ENV) && terraform plan -var="env=$(ENV)"
-
-infra-apply: ## Apply Terraform changes
-	cd infra/envs/$(ENV) && terraform apply -var="env=$(ENV)" -auto-approve
-
-infra-destroy: ## Destroy Terraform resources
-	cd infra/envs/$(ENV) && terraform destroy -var="env=$(ENV)" -auto-approve
-
-infra-output: ## Show Terraform outputs
-	cd infra/envs/$(ENV) && terraform output
-
-# API
-api-install: ## Install API dependencies
+install: ## Install all dependencies
+	@echo "$(BLUE)Installing dependencies...$(NC)"
+	npm install
 	cd api && npm install
-
-api-build: ## Build API Docker image
-	cd api && npm run build
-	cd api && docker build -t dms-api:$(ENV) .
-
-api-test: ## Run API tests
-	cd api && npm test
-
-api-push: ## Push API image to ECR
-	aws ecr get-login-password --region $(REGION) | docker login --username AWS --password-stdin $(AWS_ACCOUNT_ID).dkr.ecr.$(REGION).amazonaws.com
-	docker tag dms-api:$(ENV) $(AWS_ACCOUNT_ID).dkr.ecr.$(REGION).amazonaws.com/dms-$(ENV)-api:latest
-	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(REGION).amazonaws.com/dms-$(ENV)-api:latest
-
-api-deploy: api-build api-push ## Deploy API to Lambda
-	@echo "Updating Lambda functions..."
-	@for func in createDocument getDocument listDocuments updateDocument deleteDocument restoreDocument listVersions presignUpload presignDownload whoAmI adminListUsers adminCreateUser adminUpdateRoles adminSignOut adminAudits getUserDocuments getUserProfile updateUserProfile getVendorDocuments getVendorUsers getVendorStats preTokenGeneration; do \
-		aws lambda update-function-code \
-			--function-name dms-$(ENV)-$$func \
-			--image-uri $(AWS_ACCOUNT_ID).dkr.ecr.$(REGION).amazonaws.com/dms-$(ENV)-api:latest \
-			--region $(REGION) || true; \
-	done
-
-# Web
-web-install: ## Install web dependencies
 	cd web && npm install
 
-web-build: ## Build web application
+# Build Commands
+build: ## Build all components
+	@echo "$(BLUE)Building all components...$(NC)"
+	npm run build
+
+build-api: ## Build API only
+	@echo "$(BLUE)Building API...$(NC)"
+	cd api && npm run build
+
+build-web: ## Build web frontend only
+	@echo "$(BLUE)Building web frontend...$(NC)"
 	cd web && npm run build
 
-web-test: ## Run web tests
+# Test Commands
+test: ## Run all tests
+	@echo "$(BLUE)Running all tests...$(NC)"
+	npm run test
+
+test-api: ## Run API tests only
+	@echo "$(BLUE)Running API tests...$(NC)"
+	cd api && npm test
+
+test-web: ## Run web tests only
+	@echo "$(BLUE)Running web tests...$(NC)"
 	cd web && npm test
 
-web-deploy: web-build ## Deploy web to S3 and invalidate CloudFront
-	@echo "Getting S3 bucket and CloudFront distribution..."
-	$(eval S3_BUCKET := $(shell cd infra/envs/$(ENV) && terraform output -raw web_bucket_name))
-	$(eval CF_DIST := $(shell cd infra/envs/$(ENV) && terraform output -raw cloudfront_distribution_id))
-	
-	@echo "Deploying to S3 bucket: $(S3_BUCKET)"
-	aws s3 sync web/dist/ s3://$(S3_BUCKET)/ --delete --region $(REGION)
-	
-	@echo "Invalidating CloudFront distribution: $(CF_DIST)"
-	aws cloudfront create-invalidation --distribution-id $(CF_DIST) --paths "/*" --region $(REGION)
+# Development Commands
+dev: ## Start development servers (parallel)
+	@echo "$(BLUE)Starting development servers...$(NC)"
+	npm run dev
 
-# Full deployment
-build: api-build web-build ## Build all components
-
-test: api-test web-test ## Run all tests
-
-deploy: infra-apply api-deploy web-deploy ## Deploy everything
-
-# Development
-dev-api: ## Start API in development mode
+dev-api: ## Start API development server
+	@echo "$(BLUE)Starting API development server...$(NC)"
 	cd api && npm run dev
 
-dev-web: ## Start web in development mode
+dev-web: ## Start web development server
+	@echo "$(BLUE)Starting web development server...$(NC)"
 	cd web && npm run dev
 
-dev: ## Start both API and web in development mode
-	@echo "Starting development servers..."
-	@echo "API will be available at http://localhost:3001"
-	@echo "Web will be available at http://localhost:3000"
-	@make -j2 dev-api dev-web
+# Infrastructure Commands
+infra-init: ## Initialize Terraform
+	@echo "$(BLUE)Initializing Terraform for $(ENV)...$(NC)"
+	cd infra/envs/$(ENV) && terraform init
 
-# Utilities
-clean: ## Clean build artifacts
-	cd api && rm -rf node_modules dist
-	cd web && rm -rf node_modules dist build
+infra-plan: ## Plan infrastructure changes
+	@echo "$(BLUE)Planning infrastructure changes for $(ENV)...$(NC)"
+	cd infra/envs/$(ENV) && terraform plan
 
-logs-api: ## Tail API Lambda logs
-	@echo "Tailing logs for Lambda functions..."
-	aws logs tail /aws/lambda/dms-$(ENV)-createDocument --follow --region $(REGION)
+infra-apply: ## Apply infrastructure changes
+	@echo "$(BLUE)Applying infrastructure changes for $(ENV)...$(NC)"
+	cd infra/envs/$(ENV) && terraform apply
 
-logs-web: ## Show CloudFront access logs
-	@echo "CloudFront logs are available in S3 bucket (if enabled)"
+infra-destroy: ## Destroy infrastructure
+	@echo "$(RED)Destroying infrastructure for $(ENV)...$(NC)"
+	cd infra/envs/$(ENV) && terraform destroy
 
-status: ## Show deployment status
-	@echo "=== Infrastructure Status ==="
+infra-output: ## Show infrastructure outputs
+	@echo "$(BLUE)Infrastructure outputs for $(ENV):$(NC)"
 	cd infra/envs/$(ENV) && terraform output
-	@echo ""
-	@echo "=== API Status ==="
-	aws lambda list-functions --query 'Functions[?starts_with(FunctionName, `dms-$(ENV)-`)].{Name:FunctionName,Runtime:Runtime,LastModified:LastModified}' --output table --region $(REGION)
-	@echo ""
-	@echo "=== Web Status ==="
-	$(eval CF_DOMAIN := $(shell cd infra/envs/$(ENV) && terraform output -raw cloudfront_domain))
-	@echo "Web application: https://$(CF_DOMAIN)"
 
-# Environment management
+# Deployment Commands
+deploy: ## Deploy everything to specified environment
+	@echo "$(BLUE)Deploying to $(ENV)...$(NC)"
+	./scripts/deploy.sh $(ENV)
+
+deploy-infra: ## Deploy infrastructure only
+	@echo "$(BLUE)Deploying infrastructure to $(ENV)...$(NC)"
+	$(MAKE) infra-apply ENV=$(ENV)
+
+deploy-api: ## Deploy API only
+	@echo "$(BLUE)Deploying API to $(ENV)...$(NC)"
+	cd api && npm run deploy:$(ENV)
+
+deploy-web: ## Deploy web frontend only
+	@echo "$(BLUE)Deploying web to $(ENV)...$(NC)"
+	cd web && npm run deploy:$(ENV)
+
+# Environment-specific shortcuts
+deploy-dev: ## Deploy to development
+	$(MAKE) deploy ENV=dev
+
+deploy-stg: ## Deploy to staging
+	$(MAKE) deploy ENV=stg
+
+deploy-prod: ## Deploy to production
+	$(MAKE) deploy ENV=prod
+
+# Monitoring & Logs
+logs-api: ## Tail API logs
+	@echo "$(BLUE)Tailing API logs for $(ENV)...$(NC)"
+	aws logs tail /aws/lambda/dms-$(ENV) --follow
+
+status: ## Check deployment status
+	@echo "$(BLUE)Checking deployment status for $(ENV)...$(NC)"
+	cd infra/envs/$(ENV) && terraform output
+
+# Cleanup Commands
+clean: ## Clean build artifacts
+	@echo "$(BLUE)Cleaning build artifacts...$(NC)"
+	rm -rf api/dist web/build
+	cd api && npm run clean || true
+	cd web && npm run clean || true
+
+clean-deps: ## Clean dependencies
+	@echo "$(BLUE)Cleaning dependencies...$(NC)"
+	rm -rf node_modules api/node_modules web/node_modules
+
+# Security & Compliance
+security-scan: ## Run security scans
+	@echo "$(BLUE)Running security scans...$(NC)"
+	cd api && npm audit
+	cd web && npm audit
+
+# Documentation
+docs: ## Generate documentation
+	@echo "$(BLUE)Generating documentation...$(NC)"
+	@echo "Documentation available in docs/ directory"
+
+# Utility Commands
 create-env: ## Create new environment (usage: make create-env ENV=staging)
-	@if [ ! -d "infra/envs/$(ENV)" ]; then \
-		cp -r infra/envs/dev infra/envs/$(ENV); \
-		sed -i 's/dev/$(ENV)/g' infra/envs/$(ENV)/terraform.tfvars.example; \
-		echo "Created environment: $(ENV)"; \
-		echo "Please update infra/envs/$(ENV)/terraform.tfvars with appropriate values"; \
-	else \
-		echo "Environment $(ENV) already exists"; \
-	fi
+	@echo "$(BLUE)Creating new environment: $(ENV)$(NC)"
+	mkdir -p infra/envs/$(ENV)
+	cp infra/envs/dev/* infra/envs/$(ENV)/
+	@echo "$(GREEN)Environment $(ENV) created. Update variables in infra/envs/$(ENV)/$(NC)"
 
-# 🐳 Local Development with Docker Compose
-.PHONY: dev-up dev-down dev-logs dev-setup dev-clean dev-restart
+# Docker Commands (for local development)
+docker-build: ## Build Docker images
+	@echo "$(BLUE)Building Docker images...$(NC)"
+	cd api && docker build -t dms-api .
 
-dev-up: ## Start local development environment
-	@echo "🚀 Starting local development environment..."
+docker-up: ## Start Docker Compose services
+	@echo "$(BLUE)Starting Docker Compose services...$(NC)"
 	docker-compose up -d
-	@echo "⏳ Waiting for services to be ready..."
-	@sleep 10
-	@./scripts/setup-local.sh
 
-dev-down: ## Stop local development environment
-	@echo "🛑 Stopping local development environment..."
+docker-down: ## Stop Docker Compose services
+	@echo "$(BLUE)Stopping Docker Compose services...$(NC)"
 	docker-compose down
 
-dev-logs: ## View logs from all services
-	docker-compose logs -f
-
-dev-setup: ## Setup local AWS resources
-	@./scripts/setup-local.sh
-
-dev-clean: ## Clean up local development environment
-	@echo "🧹 Cleaning up local development environment..."
-	docker-compose down -v
-	docker system prune -f
-
-dev-restart: dev-down dev-up ## Restart local development environment
-
-# 🚀 Local Development Shortcuts
-.PHONY: local local-api local-web
-
-local: dev-up ## Start full local development (alias for dev-up)
-
-local-api: ## Start only API and dependencies
-	docker-compose up -d dynamodb-local localstack api-dev
-
-local-web: ## Start only Web development server  
-	docker-compose up -d web-dev
+# Default target
+.DEFAULT_GOAL := help

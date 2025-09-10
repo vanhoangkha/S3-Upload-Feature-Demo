@@ -48,7 +48,7 @@ export class AuthService {
   static async signIn(username: string, password: string): Promise<{ accessToken: string; idToken: string }> {
     try {
       // Use our API endpoint for authentication
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://7o9lrh9and.execute-api.us-east-1.amazonaws.com/v1'}/auth/signin`, {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'https://7o9lrh9and.execute-api.us-east-1.amazonaws.com/v1'}/auth/signin`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

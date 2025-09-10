@@ -4,7 +4,7 @@ app_name = "dms"
 env      = "dev"
 
 # Logging
-log_level = "info"
+log_level = "INFO"
 
 # Cognito Configuration
 cognito_callback_urls = [

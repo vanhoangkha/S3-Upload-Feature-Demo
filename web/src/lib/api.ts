@@ -1,4 +1,5 @@
 // Real API client for production use
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://7o9lrh9and.execute-api.us-east-1.amazonaws.com/v1';
 export interface Document {
   document_id: string;
   name: string;
@@ -34,7 +35,7 @@ class ApiClient {
   private token: string = '';
 
   constructor() {
-    this.baseURL = import.meta.env.VITE_API_URL || 'https://7o9lrh9and.execute-api.us-east-1.amazonaws.com/v1';
+    this.baseURL = API_BASE_URL;
   }
 
   setToken(token: string) {

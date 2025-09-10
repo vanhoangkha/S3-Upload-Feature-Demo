@@ -1,8 +1,7 @@
 data "aws_caller_identity" "current" {}
-data "aws_region" "current" {}
 
 resource "aws_kms_key" "docs" {
-  description             = "${var.app_name}-${var.env} documents encryption key"
+  description             = "${var.name_prefix} documents encryption key"
   deletion_window_in_days = 7
   enable_key_rotation     = true
 
@@ -19,41 +18,34 @@ resource "aws_kms_key" "docs" {
         Resource = "*"
       },
       {
-        Sid    = "Allow use of the key for encryption/decryption"
+        Sid    = "Allow CloudTrail to use the key"
         Effect = "Allow"
         Principal = {
-          AWS = [
-            "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
-          ]
+          Service = "cloudtrail.amazonaws.com"
         }
         Action = [
-          "kms:Encrypt",
           "kms:Decrypt",
-          "kms:ReEncrypt*",
+          "kms:DescribeKey",
+          "kms:Encrypt",
           "kms:GenerateDataKey*",
-          "kms:DescribeKey"
+          "kms:ReEncrypt*"
         ]
         Resource = "*"
       },
       {
-        Sid    = "Allow attachment of persistent resources"
+        Sid    = "Allow CloudWatch Logs to use the key"
         Effect = "Allow"
         Principal = {
-          AWS = [
-            "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
-          ]
+          Service = "logs.amazonaws.com"
         }
         Action = [
-          "kms:CreateGrant",
-          "kms:ListGrants",
-          "kms:RevokeGrant"
+          "kms:Decrypt",
+          "kms:DescribeKey",
+          "kms:Encrypt",
+          "kms:GenerateDataKey*",
+          "kms:ReEncrypt*"
         ]
         Resource = "*"
-        Condition = {
-          Bool = {
-            "kms:GrantIsForAWSResource" = "true"
-          }
-        }
       }
     ]
   })
@@ -62,6 +54,6 @@ resource "aws_kms_key" "docs" {
 }
 
 resource "aws_kms_alias" "docs" {
-  name          = "alias/${var.app_name}-${var.env}-docs"
+  name          = "alias/${var.name_prefix}-docs"
   target_key_id = aws_kms_key.docs.key_id
 }

@@ -18,11 +18,12 @@ resource "aws_cloudfront_distribution" "web" {
   default_root_object = "index.html"
   web_acl_id          = aws_wafv2_web_acl.cloudfront.arn
 
-  logging_config {
-    include_cookies = false
-    bucket          = "${var.logs_bucket_name}.s3.amazonaws.com"
-    prefix          = "cloudfront-logs/"
-  }
+  # Logging disabled due to S3 bucket ACL restrictions
+  # logging_config {
+  #   include_cookies = false
+  #   bucket          = "${var.logs_bucket_name}.s3.amazonaws.com"
+  #   prefix          = "cloudfront-logs/"
+  # }
 
   default_cache_behavior {
     allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]

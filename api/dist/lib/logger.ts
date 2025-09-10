@@ -1,3 +1,5 @@
+import { sanitizeForLog } from './security';
+
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 
 enum LogLevel {
@@ -44,7 +46,7 @@ const log = (level: LogLevel, levelName: string, message: string, meta: any = {}
     ts: new Date().toISOString(),
     level: levelName,
     message,
-    ...meta
+    ...sanitizeForLog(meta)
   };
 
   console.log(JSON.stringify(entry));

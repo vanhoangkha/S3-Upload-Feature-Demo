@@ -25,358 +25,263 @@ provider "aws" {
   
   default_tags {
     tags = {
-      App        = var.app_name
-      Env        = var.env
-      Owner      = "platform"
-      ManagedBy  = "Terraform"
+      App       = var.app_name
+      Env       = var.env
+      Owner     = "platform"
+      ManagedBy = "Terraform"
     }
   }
 }
 
+# Data sources
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
 locals {
-  tags = {
-    App        = var.app_name
-    Env        = var.env
-    Owner      = "platform"
-    ManagedBy  = "Terraform"
+  common_tags = {
+    App       = var.app_name
+    Env       = var.env
+    Owner     = "platform"
+    ManagedBy = "Terraform"
+    Region    = data.aws_region.current.name
+    Account   = data.aws_caller_identity.current.account_id
   }
 
+  name_prefix = "${var.app_name}-${var.env}"
+  
   # Lambda functions configuration
-  lambda_functions = {
-    # Auth functions (no authorization required)
-    auth = {
-      allow_s3_access    = false
-      allow_ddb_access   = false
-      allow_cognito_admin = false
+  all_lambda_functions = {
+    jwtAuthorizer = {
+      s3_access     = false
+      ddb_access    = false
+      cognito_admin = false
     }
     createDocument = {
-      allow_s3_access    = false
-      allow_ddb_access   = true
-      allow_cognito_admin = false
+      s3_access     = false
+      ddb_access    = true
+      cognito_admin = false
     }
     getDocument = {
-      allow_s3_access    = false
-      allow_ddb_access   = true
-      allow_cognito_admin = false
+      s3_access     = false
+      ddb_access    = true
+      cognito_admin = false
     }
     listDocuments = {
-      allow_s3_access    = false
-      allow_ddb_access   = true
-      allow_cognito_admin = false
+      s3_access     = false
+      ddb_access    = true
+      cognito_admin = false
     }
     updateDocument = {
-      allow_s3_access    = false
-      allow_ddb_access   = true
-      allow_cognito_admin = false
+      s3_access     = false
+      ddb_access    = true
+      cognito_admin = false
     }
     deleteDocument = {
-      allow_s3_access    = false
-      allow_ddb_access   = true
-      allow_cognito_admin = false
+      s3_access     = false
+      ddb_access    = true
+      cognito_admin = false
     }
     restoreDocument = {
-      allow_s3_access    = false
-      allow_ddb_access   = true
-      allow_cognito_admin = false
+      s3_access     = false
+      ddb_access    = true
+      cognito_admin = false
     }
     listVersions = {
-      allow_s3_access    = true
-      allow_ddb_access   = true
-      allow_cognito_admin = false
+      s3_access     = true
+      ddb_access    = true
+      cognito_admin = false
     }
     presignUpload = {
-      allow_s3_access    = true
-      allow_ddb_access   = false
-      allow_cognito_admin = false
+      s3_access     = true
+      ddb_access    = false
+      cognito_admin = false
     }
     presignDownload = {
-      allow_s3_access    = true
-      allow_ddb_access   = false
-      allow_cognito_admin = false
+      s3_access     = true
+      ddb_access    = false
+      cognito_admin = false
     }
     whoAmI = {
-      allow_s3_access    = false
-      allow_ddb_access   = false
-      allow_cognito_admin = false
+      s3_access     = false
+      ddb_access    = false
+      cognito_admin = false
     }
     adminListUsers = {
-      allow_s3_access    = false
-      allow_ddb_access   = false
-      allow_cognito_admin = true
+      s3_access     = false
+      ddb_access    = false
+      cognito_admin = true
     }
     adminCreateUser = {
-      allow_s3_access    = false
-      allow_ddb_access   = false
-      allow_cognito_admin = true
+      s3_access     = false
+      ddb_access    = false
+      cognito_admin = true
     }
     adminUpdateRoles = {
-      allow_s3_access    = false
-      allow_ddb_access   = true
-      allow_cognito_admin = true
+      s3_access     = false
+      ddb_access    = true
+      cognito_admin = true
     }
     adminSignOut = {
-      allow_s3_access    = false
-      allow_ddb_access   = false
-      allow_cognito_admin = true
+      s3_access     = false
+      ddb_access    = false
+      cognito_admin = true
     }
     adminAudits = {
-      allow_s3_access    = false
-      allow_ddb_access   = true
-      allow_cognito_admin = false
-    }
-    # User-specific functions
-    getUserDocuments = {
-      allow_s3_access    = false
-      allow_ddb_access   = true
-      allow_cognito_admin = false
+      s3_access     = false
+      ddb_access    = true
+      cognito_admin = false
     }
     getUserProfile = {
-      allow_s3_access    = false
-      allow_ddb_access   = true
-      allow_cognito_admin = false
+      s3_access     = false
+      ddb_access    = false
+      cognito_admin = false
     }
     updateUserProfile = {
-      allow_s3_access    = false
-      allow_ddb_access   = true
-      allow_cognito_admin = false
+      s3_access     = false
+      ddb_access    = false
+      cognito_admin = false
     }
-    # Vendor-specific functions
+    getUserDocuments = {
+      s3_access     = false
+      ddb_access    = true
+      cognito_admin = false
+    }
     getVendorDocuments = {
-      allow_s3_access    = false
-      allow_ddb_access   = true
-      allow_cognito_admin = false
+      s3_access     = false
+      ddb_access    = true
+      cognito_admin = false
     }
     getVendorUsers = {
-      allow_s3_access    = false
-      allow_ddb_access   = false
-      allow_cognito_admin = true
+      s3_access     = false
+      ddb_access    = false
+      cognito_admin = false
     }
     getVendorStats = {
-      allow_s3_access    = false
-      allow_ddb_access   = true
-      allow_cognito_admin = false
+      s3_access     = false
+      ddb_access    = true
+      cognito_admin = false
     }
   }
 
   # API routes configuration
   api_routes = {
-    "GET /me" = {
-      route_key     = "GET /me"
-      function_name = "whoAmI"
-      auth_required = true
-    }
-    "GET /files" = {
-      route_key     = "GET /files"
-      function_name = "listDocuments"
-      auth_required = true
-    }
-    "POST /files" = {
-      route_key     = "POST /files"
-      function_name = "createDocument"
-      auth_required = true
-    }
-    "GET /files/{id}" = {
-      route_key     = "GET /files/{id}"
-      function_name = "getDocument"
-      auth_required = true
-    }
-    "PATCH /files/{id}" = {
-      route_key     = "PATCH /files/{id}"
-      function_name = "updateDocument"
-      auth_required = true
-    }
-    "DELETE /files/{id}" = {
-      route_key     = "DELETE /files/{id}"
-      function_name = "deleteDocument"
-      auth_required = true
-    }
-    "POST /files/{id}/restore" = {
-      route_key     = "POST /files/{id}/restore"
-      function_name = "restoreDocument"
-      auth_required = true
-    }
-    "GET /files/{id}/versions" = {
-      route_key     = "GET /files/{id}/versions"
-      function_name = "listVersions"
-      auth_required = true
-    }
-    "POST /files/presign/upload" = {
-      route_key     = "POST /files/presign/upload"
-      function_name = "presignUpload"
-      auth_required = true
-    }
-    "POST /files/presign/download" = {
-      route_key     = "POST /files/presign/download"
-      function_name = "presignDownload"
-      auth_required = true
-    }
-    # User endpoints
-    "GET /user/documents" = {
-      route_key     = "GET /user/documents"
-      function_name = "getUserDocuments"
-      auth_required = true
-    }
-    "GET /user/profile" = {
-      route_key     = "GET /user/profile"
-      function_name = "getUserProfile"
-      auth_required = true
-    }
-    "PATCH /user/profile" = {
-      route_key     = "PATCH /user/profile"
-      function_name = "updateUserProfile"
-      auth_required = true
-    }
-    # Vendor endpoints
-    "GET /vendor/documents" = {
-      route_key     = "GET /vendor/documents"
-      function_name = "getVendorDocuments"
-      auth_required = true
-    }
-    "GET /vendor/users" = {
-      route_key     = "GET /vendor/users"
-      function_name = "getVendorUsers"
-      auth_required = true
-    }
-    "GET /vendor/stats" = {
-      route_key     = "GET /vendor/stats"
-      function_name = "getVendorStats"
-      auth_required = true
-    }
-    # Admin endpoints
-    "GET /admin/users" = {
-      route_key     = "GET /admin/users"
-      function_name = "adminListUsers"
-      auth_required = true
-    }
-    "POST /admin/users" = {
-      route_key     = "POST /admin/users"
-      function_name = "adminCreateUser"
-      auth_required = true
-    }
-    "POST /admin/users/{id}/roles" = {
-      route_key     = "POST /admin/users/{id}/roles"
-      function_name = "adminUpdateRoles"
-      auth_required = true
-    }
-    "POST /admin/users/{id}/signout" = {
-      route_key     = "POST /admin/users/{id}/signout"
-      function_name = "adminSignOut"
-      auth_required = true
-    }
-    "GET /admin/audits" = {
-      route_key     = "GET /admin/audits"
-      function_name = "adminAudits"
-      auth_required = true
-    }
+    "GET /me"                      = { route_key = "GET /me", function_name = "whoAmI", auth_required = true }
+    "GET /files"                   = { route_key = "GET /files", function_name = "listDocuments", auth_required = true }
+    "POST /files"                  = { route_key = "POST /files", function_name = "createDocument", auth_required = true }
+    "GET /files/{id}"              = { route_key = "GET /files/{id}", function_name = "getDocument", auth_required = true }
+    "PATCH /files/{id}"            = { route_key = "PATCH /files/{id}", function_name = "updateDocument", auth_required = true }
+    "DELETE /files/{id}"           = { route_key = "DELETE /files/{id}", function_name = "deleteDocument", auth_required = true }
+    "POST /files/{id}/restore"     = { route_key = "POST /files/{id}/restore", function_name = "restoreDocument", auth_required = true }
+    "GET /files/{id}/versions"     = { route_key = "GET /files/{id}/versions", function_name = "listVersions", auth_required = true }
+    "POST /files/presign/upload"   = { route_key = "POST /files/presign/upload", function_name = "presignUpload", auth_required = true }
+    "POST /files/presign/download" = { route_key = "POST /files/presign/download", function_name = "presignDownload", auth_required = true }
+    "GET /admin/users"             = { route_key = "GET /admin/users", function_name = "adminListUsers", auth_required = true }
+    "POST /admin/users"            = { route_key = "POST /admin/users", function_name = "adminCreateUser", auth_required = true }
+    "POST /admin/users/{id}/roles" = { route_key = "POST /admin/users/{id}/roles", function_name = "adminUpdateRoles", auth_required = true }
+    "POST /admin/users/{id}/signout" = { route_key = "POST /admin/users/{id}/signout", function_name = "adminSignOut", auth_required = true }
+    "GET /admin/audits"            = { route_key = "GET /admin/audits", function_name = "adminAudits", auth_required = true }
+    "GET /user/profile"            = { route_key = "GET /user/profile", function_name = "getUserProfile", auth_required = true }
+    "PUT /user/profile"            = { route_key = "PUT /user/profile", function_name = "updateUserProfile", auth_required = true }
+    "GET /user/documents"          = { route_key = "GET /user/documents", function_name = "getUserDocuments", auth_required = true }
+    "GET /vendor/documents"        = { route_key = "GET /vendor/documents", function_name = "getVendorDocuments", auth_required = true }
+    "GET /vendor/users"            = { route_key = "GET /vendor/users", function_name = "getVendorUsers", auth_required = true }
+    "GET /vendor/stats"            = { route_key = "GET /vendor/stats", function_name = "getVendorStats", auth_required = true }
   }
 }
 
-# KMS
+# Core Infrastructure
 module "kms" {
   source = "../../modules/kms"
   
-  app_name = var.app_name
-  env      = var.env
-  tags     = local.tags
+  name_prefix = local.name_prefix
+  tags        = local.common_tags
 }
 
-# S3
 module "s3" {
   source = "../../modules/s3"
   
-  app_name   = var.app_name
-  env        = var.env
-  kms_key_id = module.kms.key_id
-  tags       = local.tags
+  name_prefix = local.name_prefix
+  kms_key_id  = module.kms.key_id
+  tags        = local.common_tags
 }
 
-# DynamoDB
 module "dynamodb" {
   source = "../../modules/dynamodb"
   
-  app_name    = var.app_name
-  env         = var.env
+  name_prefix = local.name_prefix
   kms_key_arn = module.kms.key_arn
-  tags        = local.tags
+  tags        = local.common_tags
 }
 
-# ECR Repository
 module "ecr" {
   source = "../../modules/ecr"
   
-  app_name    = var.app_name
-  env         = var.env
+  name_prefix = local.name_prefix
   kms_key_arn = module.kms.key_arn
-  
-  tags = local.tags
+  tags        = local.common_tags
 }
 
 # Pre Token Generation Lambda
 module "pre_token_lambda" {
   source = "../../modules/lambda"
   
-  app_name      = var.app_name
-  env           = var.env
+  name_prefix   = local.name_prefix
   function_name = "preTokenGeneration"
-  image_uri     = "${module.ecr.ecr_repository_url}:latest"
+  image_uri     = "${module.ecr.repository_url}:latest"
   
   environment_variables = {
-    LOG_LEVEL  = var.log_level
+    LOG_LEVEL = var.log_level
   }
   
-  tags = local.tags
+  tags = local.common_tags
 }
 
-# Cognito
+# Authentication
 module "cognito" {
   source = "../../modules/cognito"
   
-  app_name    = var.app_name
-  env         = var.env
+  name_prefix           = local.name_prefix
+  callback_urls         = var.cognito_callback_urls
+  logout_urls           = var.cognito_logout_urls
+  pre_token_lambda_arn  = module.pre_token_lambda.lambda_arn
   
-  callback_urls = var.cognito_callback_urls
-  logout_urls   = var.cognito_logout_urls
-  
-  pre_token_generation_lambda_arn  = module.pre_token_lambda.lambda_arn
-  pre_token_generation_lambda_name = module.pre_token_lambda.lambda_name
-  
-  tags = local.tags
+  tags = local.common_tags
 }
 
 # Lambda Functions
 module "lambda_functions" {
   source = "../../modules/lambda"
   
-  for_each = local.lambda_functions
+  for_each = local.all_lambda_functions
   
-  app_name      = var.app_name
-  env           = var.env
+  name_prefix   = local.name_prefix
   function_name = each.key
-  image_uri     = "${module.ecr.ecr_repository_url}:latest"
+  image_uri     = "${module.ecr.repository_url}:latest"
   
   environment_variables = {
-    DOC_BUCKET         = module.s3.docs_bucket_name
-    TABLE_NAME         = module.dynamodb.documents_table_name
-    AUDIT_TABLE        = module.dynamodb.audits_table_name
-    KMS_KEY_ID         = module.kms.key_id
-    USER_POOL_ID       = module.cognito.user_pool_id
+    DOC_BUCKET          = module.s3.docs_bucket_name
+    TABLE_NAME          = module.dynamodb.documents_table_name
+    AUDIT_TABLE         = module.dynamodb.audits_table_name
+    KMS_KEY_ID          = module.kms.key_id
+    USER_POOL_ID        = module.cognito.user_pool_id
     USER_POOL_CLIENT_ID = module.cognito.user_pool_client_id
-    LOG_LEVEL          = var.log_level
+    COGNITO_USER_POOL_ID = module.cognito.user_pool_id
+    COGNITO_CLIENT_ID   = module.cognito.user_pool_client_id
+    LOG_LEVEL           = var.log_level
   }
   
-  allow_s3_access     = each.value.allow_s3_access
-  allow_ddb_access    = each.value.allow_ddb_access
-  allow_cognito_admin = each.value.allow_cognito_admin
+  # Permissions
+  s3_access     = each.value.s3_access
+  ddb_access    = each.value.ddb_access
+  cognito_admin = each.value.cognito_admin
   
-  s3_bucket_arn = module.s3.docs_bucket_arn
-  ddb_table_arns = [
-    module.dynamodb.documents_table_arn,
-    module.dynamodb.audits_table_arn
-  ]
-  kms_key_arn   = module.kms.key_arn
-  user_pool_arn = module.cognito.user_pool_arn
+  # Resource ARNs
+  s3_bucket_arn  = module.s3.docs_bucket_arn
+  ddb_table_arns = [module.dynamodb.documents_table_arn, module.dynamodb.audits_table_arn]
+  kms_key_arn    = module.kms.key_arn
+  user_pool_arn  = module.cognito.user_pool_arn
   
-  tags = local.tags
+  tags = local.common_tags
 }
 
 # API Gateway
@@ -390,80 +295,73 @@ module "apigateway" {
   cognito_user_pool_client_id = module.cognito.user_pool_client_id
   cognito_issuer              = module.cognito.cognito_issuer
   
+  jwt_authorizer_function_name = module.lambda_functions["jwtAuthorizer"].function_name
+  jwt_authorizer_invoke_arn    = module.lambda_functions["jwtAuthorizer"].invoke_arn
+  
   allowed_origins = [
-    "https://${module.cloudfront.domain_name}",
     "http://localhost:3000"
   ]
   
   lambda_functions = {
-    for name, config in local.lambda_functions : name => {
-      function_name = module.lambda_functions[name].lambda_name
-      invoke_arn    = module.lambda_functions[name].lambda_arn
-    }
+    for name in keys(local.all_lambda_functions) : name => {
+      function_name = module.lambda_functions[name].function_name
+      invoke_arn    = module.lambda_functions[name].invoke_arn
+    } if name != "jwtAuthorizer"
   }
   
   routes = local.api_routes
   
-  tags = local.tags
+  tags = local.common_tags
 }
 
-# CloudTrail
+# Monitoring & Logging
 module "cloudtrail" {
   source = "../../modules/cloudtrail"
   
-  app_name = var.app_name
-  env      = var.env
-  
+  app_name       = var.app_name
+  env            = var.env
   s3_bucket_name = module.s3.logs_bucket_name
   kms_key_arn    = module.kms.key_arn
   
-  tags = local.tags
+  tags = local.common_tags
 }
 
-# CloudWatch Alarms
 module "monitoring" {
   source = "../../modules/monitoring"
   
-  app_name    = var.app_name
-  env         = var.env
-  kms_key_arn = module.kms.key_arn
+  app_name              = var.app_name
+  env                   = var.env
+  kms_key_arn          = module.kms.key_arn
+  lambda_function_names = [for name in keys(local.all_lambda_functions) : "${local.name_prefix}-${name}"]
+  api_gateway_name     = module.apigateway.api_name
+  dynamodb_table_names = [module.dynamodb.documents_table_name, module.dynamodb.audits_table_name]
   
-  lambda_function_names = [for name, config in local.lambda_functions : "${var.app_name}-${var.env}-${name}"]
-  api_gateway_name      = module.apigateway.api_name
-  dynamodb_table_names  = [
-    module.dynamodb.documents_table_name,
-    module.dynamodb.audits_table_name
-  ]
-  
-  tags = local.tags
+  tags = local.common_tags
 }
 
-# DynamoDB Streams to Firehose
 module "audit_pipeline" {
   source = "../../modules/audit_pipeline"
   
-  app_name = var.app_name
-  env      = var.env
-  
+  app_name           = var.app_name
+  env                = var.env
   audit_table_arn    = module.dynamodb.audits_table_arn
   audit_stream_arn   = module.dynamodb.audits_stream_arn
   s3_bucket_name     = module.s3.logs_bucket_name
   kms_key_arn        = module.kms.key_arn
   
-  tags = local.tags
+  tags = local.common_tags
 }
 
-# CloudFront
+# Frontend Distribution
 module "cloudfront" {
   source = "../../modules/cloudfront"
   
-  app_name = var.app_name
-  env      = var.env
-  
+  app_name              = var.app_name
+  env                   = var.env
   s3_bucket_name        = module.s3.web_bucket_name
   s3_bucket_arn         = module.s3.web_bucket_arn
-  s3_bucket_domain_name = "${module.s3.web_bucket_name}.s3.amazonaws.com"
+  s3_bucket_domain_name = module.s3.web_bucket_domain_name
   logs_bucket_name      = module.s3.logs_bucket_name
   
-  tags = local.tags
+  tags = local.common_tags
 }

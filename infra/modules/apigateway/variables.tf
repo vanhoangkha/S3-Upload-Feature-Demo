@@ -9,9 +9,23 @@ variable "env" {
 }
 
 variable "allowed_origins" {
-  description = "Allowed CORS origins"
+  description = "Allowed CORS origins (must be explicitly specified)"
   type        = list(string)
-  default     = ["*"]
+
+  validation {
+    condition     = length(var.allowed_origins) > 0
+    error_message = "Must specify allowed origins explicitly for security."
+  }
+}
+
+variable "jwt_authorizer_function_name" {
+  description = "JWT authorizer Lambda function name"
+  type        = string
+}
+
+variable "jwt_authorizer_invoke_arn" {
+  description = "JWT authorizer Lambda invoke ARN"
+  type        = string
 }
 
 variable "cognito_user_pool_client_id" {

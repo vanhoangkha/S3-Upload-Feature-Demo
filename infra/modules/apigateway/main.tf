@@ -8,22 +8,20 @@ resource "aws_apigatewayv2_api" "main" {
     allow_methods     = ["*"]
     allow_origins     = var.allowed_origins
     expose_headers    = ["date", "keep-alive"]
-    max_age          = 86400
+    max_age           = 86400
   }
 
   tags = var.tags
 }
 
-resource "aws_apigatewayv2_authorizer" "cognito" {
-  api_id           = aws_apigatewayv2_api.main.id
-  authorizer_type  = "JWT"
-  identity_sources = ["$request.header.Authorization"]
-  name             = "cognito-authorizer"
-
-  jwt_configuration {
-    audience = [var.cognito_user_pool_client_id]
-    issuer   = var.cognito_issuer
-  }
+resource "aws_apigatewayv2_authorizer" "lambda" {
+  api_id                            = aws_apigatewayv2_api.main.id
+  authorizer_type                   = "REQUEST"
+  authorizer_uri                    = var.jwt_authorizer_invoke_arn
+  name                              = "jwt-authorizer"
+  authorizer_result_ttl_in_seconds  = 300
+  authorizer_payload_format_version = "2.0"
+  identity_sources                  = ["$request.header.Authorization"]
 }
 
 resource "aws_apigatewayv2_stage" "main" {
@@ -36,15 +34,15 @@ resource "aws_apigatewayv2_stage" "main" {
     destination_arn = aws_cloudwatch_log_group.api_gw.arn
 
     format = jsonencode({
-      requestId      = "$context.requestId"
-      sourceIp       = "$context.identity.sourceIp"
-      requestTime    = "$context.requestTime"
-      protocol       = "$context.protocol"
-      httpMethod     = "$context.httpMethod"
-      resourcePath   = "$context.resourcePath"
-      routeKey       = "$context.routeKey"
-      status         = "$context.status"
-      responseLength = "$context.responseLength"
+      requestId               = "$context.requestId"
+      sourceIp                = "$context.identity.sourceIp"
+      requestTime             = "$context.requestTime"
+      protocol                = "$context.protocol"
+      httpMethod              = "$context.httpMethod"
+      resourcePath            = "$context.resourcePath"
+      routeKey                = "$context.routeKey"
+      status                  = "$context.status"
+      responseLength          = "$context.responseLength"
       integrationErrorMessage = "$context.integrationErrorMessage"
     })
   }
@@ -55,8 +53,8 @@ resource "aws_apigatewayv2_stage" "main" {
 resource "aws_cloudwatch_log_group" "api_gw" {
   name              = "/aws/apigateway/${var.app_name}-${var.env}-api"
   retention_in_days = 365
-  kms_key_id        = var.kms_key_arn
-  tags              = var.tags
+  # kms_key_id        = var.kms_key_arn  # Temporarily disabled due to permissions
+  tags = var.tags
 }
 
 # Routes and integrations
@@ -78,8 +76,8 @@ resource "aws_apigatewayv2_route" "lambda" {
   route_key = each.value.route_key
   target    = "integrations/${aws_apigatewayv2_integration.lambda[each.value.function_name].id}"
 
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
+  authorization_type = "CUSTOM"
+  authorizer_id      = aws_apigatewayv2_authorizer.lambda.id
 }
 
 # Lambda permissions
@@ -94,10 +92,20 @@ resource "aws_lambda_permission" "api_gw" {
   source_arn = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }
 
+# JWT Authorizer Lambda permission
+resource "aws_lambda_permission" "authorizer" {
+  statement_id  = "AllowExecutionFromAPIGatewayAuthorizer"
+  action        = "lambda:InvokeFunction"
+  function_name = var.jwt_authorizer_function_name
+  principal     = "apigateway.amazonaws.com"
+
+  source_arn = "${aws_apigatewayv2_api.main.execution_arn}/authorizers/${aws_apigatewayv2_authorizer.lambda.id}"
+}
+
 # Public auth routes (no authorization required)
 resource "aws_apigatewayv2_route" "auth_signin" {
   count = contains(keys(var.lambda_functions), "auth") ? 1 : 0
-  
+
   api_id = aws_apigatewayv2_api.main.id
 
   route_key = "POST /auth/signin"

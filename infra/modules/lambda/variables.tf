@@ -1,103 +1,117 @@
-variable "app_name" {
-  description = "Application name"
-  type        = string
-}
-
-variable "env" {
-  description = "Environment"
+variable "name_prefix" {
+  description = "Prefix for resource names"
   type        = string
 }
 
 variable "function_name" {
-  description = "Lambda function name"
+  description = "Name of the Lambda function"
   type        = string
 }
 
 variable "image_uri" {
-  description = "ECR image URI"
+  description = "URI of the container image"
   type        = string
 }
 
 variable "timeout" {
-  description = "Lambda timeout in seconds"
+  description = "Function timeout in seconds"
   type        = number
   default     = 30
+  
+  validation {
+    condition = var.timeout >= 1 && var.timeout <= 900
+    error_message = "Timeout must be between 1 and 900 seconds."
+  }
 }
 
 variable "memory_size" {
-  description = "Lambda memory size in MB"
+  description = "Memory size in MB"
   type        = number
-  default     = 256
+  default     = 512
+  
+  validation {
+    condition = var.memory_size >= 128 && var.memory_size <= 10240
+    error_message = "Memory size must be between 128 and 10240 MB."
+  }
+}
+
+variable "reserved_concurrent_executions" {
+  description = "Reserved concurrent executions"
+  type        = number
+  default     = -1
 }
 
 variable "log_retention_days" {
   description = "CloudWatch log retention in days"
   type        = number
-  default     = 14
+  default     = 365
 }
 
 variable "environment_variables" {
-  description = "Environment variables for Lambda"
+  description = "Environment variables for the function"
   type        = map(string)
   default     = {}
 }
 
-variable "create_ecr_repo" {
-  description = "Whether to create ECR repository"
+# Permission flags
+variable "s3_access" {
+  description = "Grant S3 access permissions"
   type        = bool
   default     = false
 }
 
-variable "allow_s3_access" {
-  description = "Allow S3 access"
+variable "ddb_access" {
+  description = "Grant DynamoDB access permissions"
   type        = bool
   default     = false
 }
 
-variable "allow_ddb_access" {
-  description = "Allow DynamoDB access"
+variable "cognito_admin" {
+  description = "Grant Cognito admin permissions"
   type        = bool
   default     = false
 }
 
-variable "allow_cognito_admin" {
-  description = "Allow Cognito admin access"
+# Feature flags
+variable "enable_dlq" {
+  description = "Enable Dead Letter Queue"
   type        = bool
-  default     = false
+  default     = true
 }
 
+variable "enable_xray" {
+  description = "Enable X-Ray tracing"
+  type        = bool
+  default     = true
+}
+
+# Resource ARNs
 variable "s3_bucket_arn" {
-  description = "S3 bucket ARN"
+  description = "S3 bucket ARN for permissions"
   type        = string
   default     = ""
 }
 
 variable "ddb_table_arns" {
-  description = "DynamoDB table ARNs"
+  description = "DynamoDB table ARNs for permissions"
   type        = list(string)
   default     = []
 }
 
 variable "kms_key_arn" {
-  description = "KMS key ARN"
+  description = "KMS key ARN for encryption"
   type        = string
   default     = ""
 }
 
 variable "user_pool_arn" {
-  description = "Cognito User Pool ARN"
+  description = "Cognito User Pool ARN for admin permissions"
   type        = string
   default     = ""
 }
 
-variable "reserved_concurrent_executions" {
-  description = "Reserved concurrent executions for Lambda"
-  type        = number
-  default     = 10
-}
-
 variable "tags" {
-  description = "Tags to apply to resources"
+  description = "Resource tags"
   type        = map(string)
   default     = {}
 }

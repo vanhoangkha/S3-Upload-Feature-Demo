@@ -1,0 +1,33 @@
+{
+  "name": "document-management-system",
+  "version": "1.0.0",
+  "description": "Production-ready serverless document management system",
+  "private": true,
+  "workspaces": [
+    "api",
+    "web"
+  ],
+  "scripts": {
+    "setup": "./scripts/setup-env.sh",
+    "deploy": "./scripts/deploy.sh",
+    "deploy:dev": "./scripts/deploy.sh dev",
+    "deploy:stg": "./scripts/deploy.sh stg", 
+    "deploy:prod": "./scripts/deploy.sh prod",
+    "test": "npm run test --workspaces",
+    "build": "npm run build --workspaces",
+    "clean": "npm run clean --workspaces"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-org/document-management-system.git"
+  },
+  "keywords": [
+    "aws",
+    "serverless",
+    "document-management",
+    "typescript",
+    "react"
+  ],
+  "author": "Your Organization",
+  "license": "MIT"
+}

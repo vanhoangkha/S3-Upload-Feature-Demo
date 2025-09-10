@@ -18,6 +18,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { isAuthenticated, isLoading, hasAnyRole, user } = useAuth();
   const location = useLocation();
 
+  console.log('ProtectedRoute - isAuthenticated:', isAuthenticated);
+  console.log('ProtectedRoute - user:', user);
+  console.log('ProtectedRoute - location:', location.pathname);
+
   if (isLoading) {
     return (
       <Box textAlign="center" padding="xxl">
@@ -39,41 +43,15 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
     
     if (!hasRequiredPermission) {
-      return (
-        <Box padding="l">
-          <Alert type="error">
-            <strong>Access Denied</strong><br />
-            You don't have permission to access this resource.
-            Required permission: {requiredPermission}
-          </Alert>
-        </Box>
-      );
+      console.log(`Access denied - missing permission: ${requiredPermission}`);
+      return <Navigate to="/access-denied" replace />;
     }
   }
 
-  // Check legacy role-based access
+  // Check required roles if provided
   if (requiredRoles.length > 0 && !hasAnyRole(requiredRoles)) {
-    return (
-      <Box padding="l">
-        <Alert type="error">
-          <strong>Access Denied</strong><br />
-          You don't have the required role to access this resource.
-          Required roles: {requiredRoles.join(', ')}
-        </Alert>
-      </Box>
-    );
-  }
-
-  // Check route-based permissions
-  if (user && !canAccessRoute(location.pathname, user.roles || [], user.vendorId)) {
-    return (
-      <Box padding="l">
-        <Alert type="error">
-          <strong>Access Denied</strong><br />
-          You don't have permission to access this page.
-        </Alert>
-      </Box>
-    );
+    console.log(`Access denied - missing roles: ${requiredRoles.join(', ')}`);
+    return <Navigate to="/access-denied" replace />;
   }
 
   return <>{children}</>;

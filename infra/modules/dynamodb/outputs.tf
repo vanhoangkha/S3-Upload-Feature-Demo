@@ -30,10 +30,10 @@ output "documents_stream_arn" {
 
 output "role_audits_table_name" {
   description = "Role audits table name"
-  value       = aws_dynamodb_table.role_audits.name
+  value       = aws_dynamodb_table.audits.name
 }
 
 output "role_audits_table_arn" {
   description = "Role audits table ARN"
-  value       = aws_dynamodb_table.role_audits.arn
+  value       = aws_dynamodb_table.audits.arn
 }

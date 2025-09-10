@@ -1,19 +1,22 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { v4 as uuidv4 } from 'uuid';
-import { requireAuth, assertAccess } from '../lib/auth';
+import { requirePermission } from '../lib/rbac';
+import { assertAccess } from '../lib/auth';
 import { validateInput, createDocumentSchema } from '../lib/validation';
 import { createErrorResponse, BadRequestError } from '../lib/errors';
 import { logger } from '../lib/logger';
-import { putDocument, findDocumentByChecksum, Document } from '../lib/dynamodb';
+import { putDocument, Document } from '../lib/dynamodb';
 import { generateS3Key } from '../lib/s3';
 import { auditLog } from '../lib/audit';
+import { sanitizeEvent, safeJsonParse, createSafeResponse } from '../lib/security';
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const startTime = Date.now();
   const requestId = event.requestContext.requestId;
   
   try {
-    const auth = requireAuth(event);
+    const validatedEvent = sanitizeEvent(event);
+    const auth = requirePermission(validatedEvent, 'write');
     
     logger.info('Create document request', {
       requestId,
@@ -21,7 +24,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       action: 'createDocument'
     });
 
-    const body = JSON.parse(event.body || '{}');
+    const body = safeJsonParse(validatedEvent.body);
     const input = validateInput(createDocumentSchema, body);
     
     // Use auth context for vendorId and userId
@@ -30,39 +33,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     
     assertAccess(auth, { vendorId, userId });
 
-    // Check for existing document with same checksum and owner (idempotency)
-    const checksum = input.checksum || 'no-checksum';
-    const existing = await findDocumentByChecksum(vendorId, userId, checksum);
-    if (existing) {
-      logger.info('Returning existing document', {
-        requestId,
-        actor: auth,
-        action: 'createDocument',
-        resource: { type: 'document', id: existing.document_id },
-        result: 'success',
-        latency_ms: Date.now() - startTime
-      });
-
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          documentId: existing.document_id,
-          version: existing.version,
-          s3Key: existing.s3_key
-        }),
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-          'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS'
-        }
-      };
-    }
-
     const documentId = uuidv4();
     const version = 1;
     const s3Key = generateS3Key(vendorId, userId, documentId, version, input.filename);
     const now = new Date().toISOString();
+    const checksum = input.checksum || `${documentId}-${now}`;
 
     const document: Document = {
       pk: `TENANT#${vendorId}`,
@@ -101,20 +76,14 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       latency_ms: Date.now() - startTime
     });
 
-    return {
-      statusCode: 201,
-      body: JSON.stringify({
-        documentId,
-        version,
-        s3Key
-      }),
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-        'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS'
-      }
-    };
+    return createSafeResponse(201, {
+      documentId,
+      version,
+      s3Key,
+      name: input.filename,
+      size: input.size || 0,
+      createdAt: now
+    });
 
   } catch (error) {
     logger.error('Create document failed', {

@@ -59,7 +59,7 @@ export const AmplifyDocumentTable: React.FC<AmplifyDocumentTableProps> = ({ scop
   };
 
   const handleDelete = async (documentId: string) => {
-    if (!confirm('Are you sure you want to delete this document?')) return;
+    if (!window.confirm('Are you sure you want to delete this document?')) return;
     
     try {
       await apiClient.deleteDocument(documentId);
