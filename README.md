@@ -57,7 +57,6 @@ S3-Upload-Feature-Demo/
 - **Amazon S3**:
   - Document storage with vendor-based folder structure
   - Presigned URLs for secure, time-limited access
-  - CloudFront integration for global content delivery
 - **DynamoDB**:
   - Document metadata and user permissions
   - Scalable NoSQL database with on-demand pricing
@@ -67,7 +66,6 @@ S3-Upload-Feature-Demo/
 
 - **AWS Lambda**: Serverless function execution
 - **API Gateway**: RESTful API management and routing
-- **CloudFront**: Content delivery network for static assets
 
 **Security & Monitoring**
 
@@ -142,7 +140,6 @@ S3-Upload-Feature-Demo/
 | Service | Usage | Monthly Cost |
 |---------|-------|-------------|
 | **S3 Storage** | 102GB storage + requests | $3.25 |
-| **CloudFront CDN** | 500GB transfer + 10M requests | $67.50 |
 | **API Gateway** | 5M API calls + 50GB transfer | $9.50 |
 | **Lambda** | 5M requests + compute time | $3.78 |
 | **DynamoDB** | 1.5M requests + 1GB storage | $1.13 |
@@ -305,7 +302,7 @@ npm start
    ```bash
    cd docs-ui
    npm run build
-   # Deploy build/ directory to S3 static hosting or CloudFront
+   # Deploy build/ directory to S3 static hosting
    ```
 
 ### Environment Configuration
