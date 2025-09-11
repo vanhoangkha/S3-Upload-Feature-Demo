@@ -71,13 +71,6 @@ export interface PresignedUrlResponse {
   uploadType: 'simple' | 'multipart';
 }
 
-export interface MultipartUploadInitResponse {
-  uploadId: string;
-  s3Key: string;
-  parts: MultipartUploadPart[];
-  uploadType: 'multipart';
-}
-
 export interface MultipartUploadPart {
   partNumber: number;
   uploadUrl: string;

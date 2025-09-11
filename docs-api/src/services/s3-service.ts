@@ -7,21 +7,18 @@ import {
   UploadPartCommand,
   CompleteMultipartUploadCommand,
   AbortMultipartUploadCommand,
-  ListPartsCommand,
-  ListObjectsV2Command
+  ListPartsCommand
 } from '@aws-sdk/client-s3';
 import { s3Client, config } from '../utils/aws-config';
 import { logger } from '../utils/logger';
 import {
   PresignedUrlResponse,
   MultipartUploadResponse,
-  MultipartUploadInitResponse,
   CompleteMultipartUploadRequest,
   CompletedPart,
   UploadStatusResponse,
   MultipartUploadPart
 } from '../types';
-import { v4 as uuidv4 } from 'uuid';
 
 export class S3Service {
   // Threshold for multipart upload (1GB - most files will use simple upload)
@@ -239,41 +236,6 @@ export class S3Service {
       return true;
     } catch (error) {
       return false;
-    }
-  }
-
-  // Method to upload an object directly to S3 (for small files like folder metadata)
-  async uploadObject(key: string, body: string, contentType: string = 'text/plain'): Promise<void> {
-    const command = new PutObjectCommand({
-      Bucket: config.documentStoreBucketName,
-      Key: key,
-      Body: body,
-      ContentType: contentType,
-    });
-
-    await s3Client.send(command);
-  }
-
-  // List objects in S3 bucket with a specific prefix (useful for folder detection)
-  async listObjects(prefix: string, maxKeys: number = 1000): Promise<any[]> {
-    try {
-      const command = new ListObjectsV2Command({
-        Bucket: config.documentStoreBucketName,
-        Prefix: prefix,
-        MaxKeys: maxKeys,
-      });
-
-      const response = await s3Client.send(command);
-
-      return response.Contents?.map(object => ({
-        key: object.Key,
-        lastModified: object.LastModified,
-        size: object.Size,
-        etag: object.ETag
-      })) || [];
-    } catch (error) {
-      logger.error('Error listing S3 objects:', error);
-      return [];
     }
   }
 

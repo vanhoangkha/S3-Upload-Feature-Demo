@@ -67,3 +67,20 @@ jspm_packages/
 # AWS
 .aws-sam/
 samconfig.toml
+
+# Lambda deployment files
+lambda-deployment.zip
+*.zip
+
+# Package lock variations
+package-lock.json
+yarn.lock
+
+# Runtime and temporary files
+.cache/
+*.tmp
+*.temp
+
+# TypeScript incremental compilation
+.tsbuildinfo
+*.tsbuildinfo
