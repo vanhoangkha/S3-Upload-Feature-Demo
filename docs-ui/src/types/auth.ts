@@ -38,10 +38,3 @@ export interface RegisterFormData {
   password: string;
   confirmPassword: string;
 }
-
-export interface ForgotPasswordFormData {
-  username: string;
-  newPassword?: string;
-  confirmPassword?: string;
-  verificationCode?: string;
-}
