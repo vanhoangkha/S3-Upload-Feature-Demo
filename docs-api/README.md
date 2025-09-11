@@ -1,26 +1,31 @@
 # Documents API
 
-A modern REST API built with HonoJS for managing document uploads and downloads using AWS S3 presigned URLs and DynamoDB for metadata storage.
+A modern REST API built with HonoJS for managing document uploads, downloads, and folder organization using AWS S3 presigned URLs, DynamoDB for metadata storage, and Cognito for authentication.
 
 ## 🚀 Features
 
-- **Document Management**: Create, read, and delete operations for documents
+- **Document Management**: Create, read, and delete operations for documents with folder organization
+- **Folder Management**: Create and manage hierarchical folder structures
 - **S3 Presigned URLs**: Secure file upload and download without exposing AWS credentials
 - **DynamoDB Integration**: Efficient metadata storage with user-based partitioning
+- **Cognito Authentication**: User authentication and authorization with admin role support
 - **TypeScript**: Full type safety and excellent developer experience
 - **Modern Stack**: Built with HonoJS for high performance and simplicity
 - **AWS Integration**: Seamless integration with existing AWS infrastructure
 
 ## 🏗️ Architecture
 
-The API integrates with the following AWS services deployed via `s3-upload-infra`:
+The API integrates with the following AWS services deployed via `docs-infra`:
 
 - **DynamoDB Tables**:
   - `Documents`: Stores document metadata with `user_id` (hash key) and `file` (range key)
+  - Supports both files and folders with `itemType` field
 - **S3 Buckets**:
-  - `vibdmsstore2026`: Document storage bucket
-  - `vibdmswebstore2026`: Web assets bucket
-- **Cognito**: User authentication and authorization
+  - `vibdmsstore2026-by-ctn`: Document storage bucket with protected user folders
+  - `vibdmswebstore2026-by-ctn`: Web assets bucket for static hosting
+- **Cognito**: User authentication and authorization with admin role support
+- **API Gateway**: RESTful API endpoint with Cognito authorizer integration
+- **Lambda**: Serverless function deployment
 
 ## 📋 Prerequisites
 
@@ -28,8 +33,9 @@ The API integrates with the following AWS services deployed via `s3-upload-infra
 - **AWS Account with appropriate permissions**
 - **AWS CLI configured** or appropriate AWS credentials for:
   - DynamoDB read/write access to `Documents` tables
-  - S3 read/write access to `vibdmsstore2026` and `vibdmswebstore2026` buckets
-- Access to the deployed AWS infrastructure from `s3-upload-infra`
+  - S3 read/write access to `vibdmsstore2026-by-ctn` and `vibdmswebstore2026-by-ctn` buckets
+  - Cognito user pool access
+- Access to the deployed AWS infrastructure from `docs-infra`
 
 ### AWS Authentication
 
@@ -86,19 +92,25 @@ aws configure
    # 2. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) - optional
    # 3. EC2/ECS/Lambda roles when deployed
    
-   # DynamoDB Tables (from s3-upload-infra)
+   # DynamoDB Tables (from docs-infra)
    DOCUMENTS_TABLE_NAME=Documents
    
-   # S3 Buckets (from s3-upload-infra)
-   DOCUMENT_STORE_BUCKET_NAME=vibdmsstore2026
-   WEB_STORE_BUCKET_NAME=vibdmswebstore2026
+   # S3 Buckets (from docs-infra)  
+   DOCUMENT_STORE_BUCKET_NAME=vibdmsstore2026-by-ctn
+   WEB_STORE_BUCKET_NAME=vibdmswebstore2026-by-ctn
+   
+   # Cognito Configuration (from docs-infra)
+   COGNITO_USER_POOL_ID=your-user-pool-id
+   
+   # API Gateway Configuration
+   API_GATEWAY_URL=https://your-api-gateway-url
    
    # Local Development
    PORT=3001
    NODE_ENV=development
    
    # CORS allowed origins
-   ALLOWED_ORIGINS=http://localhost:3000,https://dev.d3gk57lhevbrz2.amplifyapp.com
+   ALLOWED_ORIGINS=http://localhost:3000,https://your-static-website-url
    ```
 
 ## 🚦 Getting Started
@@ -140,14 +152,26 @@ http://localhost:3001/api/documents
 
 ### Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/` | List documents (with optional `user_id` filter) |
-| `POST` | `/presigned-url` | Generate S3 presigned URLs for upload |
-| `POST` | `/` | Create document metadata record |
-| `GET` | `/:user_id/:file` | Get specific document |
-| `GET` | `/:user_id/:file/download` | Get download URL |
-| `DELETE` | `/:user_id/:file` | Delete document and file |
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| `GET` | `/health` | Health check endpoint | No |
+| `GET` | `/api/documents` | List documents/folders (with optional `user_id` filter) | Yes |
+| `POST` | `/api/documents/presigned-url` | Generate S3 presigned URLs for upload | Yes |
+| `POST` | `/api/documents` | Create document metadata record | Yes |
+| `POST` | `/api/documents/folder` | Create a new folder | Yes |
+| `GET` | `/api/documents/:user_id` | List user's documents and folders | Yes |
+| `GET` | `/api/documents/:user_id/:file` | Get specific document | Yes |
+| `GET` | `/api/documents/:user_id/:file/download` | Get download URL | Yes |
+| `DELETE` | `/api/documents/:user_id/:file` | Delete document and file | Yes |
+
+### Authentication
+
+All API endpoints (except `/health`) require authentication via Cognito JWT tokens. Include the token in the Authorization header:
+
+```bash
+curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  http://localhost:3001/api/documents
+```
 
 ### API Usage Examples
 
@@ -156,10 +180,12 @@ http://localhost:3001/api/documents
 ```bash
 curl -X POST http://localhost:3001/api/documents/presigned-url \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
     "fileName": "example.pdf",
     "mimeType": "application/pdf",
-    "user_id": "user123"
+    "user_id": "user123",
+    "folderPath": "documents/work"
   }'
 ```
 
@@ -169,9 +195,9 @@ Response:
 {
   "success": true,
   "data": {
-    "uploadUrl": "https://vibdmsstore2026.s3.amazonaws.com/...",
-    "downloadUrl": "https://vibdmsstore2026.s3.amazonaws.com/...",
-    "s3Key": "documents/user123/uuid-example.pdf"
+    "uploadUrl": "https://vibdmsstore2026-by-ctn.s3.amazonaws.com/...",
+    "downloadUrl": "https://vibdmsstore2026-by-ctn.s3.amazonaws.com/...",
+    "s3Key": "protected/user123/documents/work/uuid-example.pdf"
   }
 }
 ```
@@ -183,6 +209,7 @@ After uploading to S3 using the presigned URL:
 ```bash
 curl -X POST http://localhost:3001/api/documents \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
     "title": "Important Document",
     "description": "This is a sample document",
@@ -190,32 +217,85 @@ curl -X POST http://localhost:3001/api/documents \
     "fileSize": 1024000,
     "mimeType": "application/pdf",
     "user_id": "user123",
-    "s3Key": "documents/user123/uuid-example.pdf"
+    "s3Key": "protected/user123/documents/work/uuid-example.pdf",
+    "folderPath": "documents/work"
   }'
 ```
 
-#### 3. List User Documents
+#### 3. Create a Folder
 
 ```bash
-curl "http://localhost:3001/api/documents?user_id=user123&limit=10"
+curl -X POST http://localhost:3001/api/documents/folder \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "folderName": "Projects",
+    "user_id": "user123",
+    "parentPath": "documents"
+  }'
 ```
 
-#### 4. Get Document Details
+#### 4. List User Documents and Folders
 
 ```bash
-curl http://localhost:3001/api/documents/user123/example.pdf
+curl "http://localhost:3001/api/documents/user123?folderPath=documents" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
-#### 5. Get Download URL
+Response:
 
-```bash
-curl http://localhost:3001/api/documents/user123/example.pdf/download
+```json
+{
+  "success": true,
+  "data": {
+    "folders": [
+      {
+        "name": "Projects",
+        "path": "documents/Projects",
+        "type": "folder"
+      }
+    ],
+    "files": [
+      {
+        "name": "Important Document",
+        "document": {
+          "user_id": "user123",
+          "file": "protected/user123/documents/work/uuid-example.pdf",
+          "title": "Important Document",
+          "description": "This is a sample document",
+          "fileSize": 1024000,
+          "mimeType": "application/pdf",
+          "createdAt": "2024-01-15T10:30:00.000Z",
+          "folderPath": "documents"
+        }
+      }
+    ],
+    "currentPath": "documents"
+  }
+}
 ```
 
-#### 6. Delete Document
+```
+
+#### 5. Get Document Details
 
 ```bash
-curl -X DELETE http://localhost:3001/api/documents/user123/example.pdf
+curl http://localhost:3001/api/documents/user123/protected%2Fuser123%2Fdocuments%2Fwork%2Fuuid-example.pdf \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+#### 6. Get Download URL
+
+```bash
+curl http://localhost:3001/api/documents/user123/protected%2Fuser123%2Fdocuments%2Fwork%2Fuuid-example.pdf/download \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+#### 7. Delete Document
+
+```bash
+curl -X DELETE http://localhost:3001/api/documents/user123/protected%2Fuser123%2Fdocuments%2Fwork%2Fuuid-example.pdf \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
 ## 🗂️ Project Structure
@@ -225,15 +305,19 @@ src/
 ├── index.ts              # Main Hono application
 ├── server.ts             # Local development server
 ├── lambda.ts             # AWS Lambda handler
+├── middleware/
+│   └── auth.ts           # Cognito authentication middleware
 ├── routes/
-│   └── documents.ts      # Document API routes
+│   └── documents.ts      # Document and folder API routes
 ├── services/
 │   ├── document-service.ts  # DynamoDB operations
 │   └── s3-service.ts     # S3 operations
 ├── types/
-│   └── index.ts          # TypeScript interfaces
+│   ├── auth.ts           # Authentication type definitions
+│   └── index.ts          # API type definitions
 └── utils/
-    └── aws-config.ts     # AWS client configuration
+    ├── aws-config.ts     # AWS client configuration
+    └── logger.ts         # Logging utilities
 ```
 
 ## 🔧 Development Commands
@@ -243,31 +327,21 @@ src/
 | `npm run dev` | Start development server with hot reload |
 | `npm run build` | Build TypeScript to JavaScript |
 | `npm run start` | Start production server |
-| `npm run test` | Run Jest tests |
-| `npm run test:watch` | Run tests in watch mode |
+| `npm run server` | Start server using tsx (development) |
 | `npm run lint` | Check TypeScript compilation |
 | `npm run clean` | Remove build directory |
-
-## 🧪 Testing
-
-Run the test suite:
-
-```bash
-npm test
-```
-
-Run tests in watch mode during development:
-
-```bash
-npm run test:watch
-```
+| `npm run build:lambda` | Build for Lambda deployment |
+| `npm run package:lambda` | Package Lambda deployment zip |
 
 ## 🔐 Security Considerations
 
+- **Cognito Authentication**: All endpoints require valid JWT tokens (except health check)
+- **User Isolation**: Users can only access their own documents unless they are admins
+- **Admin Role**: Admin users can access all documents across all users
 - **Presigned URLs**: Limited-time access (1 hour by default)
 - **CORS**: Configured for specific allowed origins
-- **Authentication**: Ready for Cognito integration
-- **Validation**: Input validation on all endpoints
+- **Protected S3 Paths**: User files stored in `protected/{user_id}/` structure
+- **Input Validation**: Comprehensive validation on all endpoints
 
 ## 🚀 Deployment
 
@@ -281,28 +355,46 @@ For Lambda deployment, the `lambda.ts` file provides the AWS Lambda handler that
 
 ## 🔍 Monitoring & Debugging
 
-### Health Check
+### API Health Check
 
 ```bash
 curl http://localhost:3001/health
 ```
 
+### Authentication Testing
+
+Test with a valid Cognito JWT token:
+
+```bash
+curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  http://localhost:3001/api/documents
+```
+
 ### Logs
 
-The application uses Hono's built-in logger middleware. In development, logs are output to the console.
+The application uses structured logging with different levels:
+
+- `DEBUG`: Detailed debugging information
+- `INFO`: General application information  
+- `WARN`: Warning messages
+- `ERROR`: Error conditions
+
+In development, logs are output to the console with full detail.
 
 ### Environment Variables
 
-All configuration is handled through environment variables. See `.env.example` for the complete list.
+All configuration is handled through environment variables. See the configuration section above for the complete list.
 
 ## 🤝 Integration with Frontend
 
-This API is designed to work with the React frontend in `s3-upload-ui`. The frontend should:
+This API is designed to work with the React frontend in `docs-ui`. The frontend should:
 
-1. Call `/presigned-url` to get upload URLs
-2. Upload files directly to S3 using the presigned URL
-3. Call the document creation endpoint to save metadata
-4. Use other endpoints for document management
+1. Authenticate users via Cognito and obtain JWT tokens
+2. Call `/api/documents/presigned-url` to get upload URLs
+3. Upload files directly to S3 using the presigned URL
+4. Call the document creation endpoint to save metadata
+5. Use folder endpoints to organize documents
+6. Use other endpoints for document management
 
 ## 📝 API Response Format
 
@@ -323,32 +415,36 @@ All API responses follow this format:
 
 1. **AWS Credentials Error**:
    - **Problem**: `CredentialsError: Missing credentials in config`
-   - **Solution**: Make sure you have set `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` in your `.env` file, or configure AWS CLI with `aws configure`
+   - **Solution**: Configure AWS CLI with `aws configure` or set AWS environment variables
 
-2. **DynamoDB Access Denied**:
+2. **Authentication Error**:
+   - **Problem**: `401 Unauthorized` or `403 Forbidden`
+   - **Solution**: Ensure you have a valid Cognito JWT token in the Authorization header
+
+3. **DynamoDB Access Denied**:
    - **Problem**: `AccessDenied` when accessing DynamoDB tables
-   - **Solution**: Verify your IAM user has `DynamoDBFullAccess` or the specific permissions for the `Documents` tables
+   - **Solution**: Verify your IAM user/role has DynamoDB permissions for the `Documents` table
 
-3. **S3 Permissions Error**:
+4. **S3 Permissions Error**:
    - **Problem**: Cannot generate presigned URLs or access S3 buckets
-   - **Solution**: Ensure your IAM user has `S3FullAccess` or specific permissions for the `vibdmsstore2026` bucket
+   - **Solution**: Ensure your IAM user/role has S3 permissions for the document store bucket
 
-4. **Table Not Found**:
+5. **Table Not Found**:
    - **Problem**: `ResourceNotFoundException: Requested resource not found`
-   - **Solution**: Make sure the DynamoDB tables are created and the table names in `.env` match your infrastructure
+   - **Solution**: Make sure the DynamoDB tables are created via the `docs-infra` deployment
 
-5. **CORS Issues**:
+6. **CORS Issues**:
    - **Problem**: Frontend can't connect to API
-   - **Solution**: Update `ALLOWED_ORIGINS` in `.env` to include your frontend URL
+   - **Solution**: Update `ALLOWED_ORIGINS` in environment variables to include your frontend URL
 
 ### Testing AWS Connection
 
-You can test your AWS credentials are working by running:
+Test your AWS credentials are working:
 
 ```bash
 # Test AWS CLI access
-aws dynamodb list-tables --region us-east-1
-aws s3 ls s3://vibdmsstore2026
+aws dynamodb list-tables --region ap-northeast-3
+aws s3 ls s3://vibdmsstore2026-by-ctn
 
 # Or start the API and check the health endpoint
 npm run dev
