@@ -55,6 +55,11 @@ output "cognito_identity_pool_id" {
   value       = module.cognito.identity_pool_id
 }
 
+output "cognito_admin_group_name" {
+  description = "Name of the Cognito admin group"
+  value       = module.cognito.admin_group_name
+}
+
 # ===========================================
 # API Gateway Outputs
 # ===========================================

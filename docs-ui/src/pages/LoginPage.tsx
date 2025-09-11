@@ -25,8 +25,6 @@ export const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const from = location.state?.from?.pathname || '/';
-
   const handleChange = (field: keyof LoginFormData, value: string) => {
     setFormData({ ...formData, [field]: value });
   };
@@ -38,7 +36,9 @@ export const LoginPage: React.FC = () => {
 
     try {
       await signIn(formData.username, formData.password);
-      navigate(from, { replace: true });
+      // Always navigate to the default route after login for security
+      // Don't redirect to previous routes to prevent session hijacking
+      navigate('/', { replace: true, state: null });
     } catch (err: any) {
       console.error('Error signing in:', err);
       setError(err.message || 'An error occurred during sign in');

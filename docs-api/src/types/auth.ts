@@ -22,6 +22,32 @@ export interface CognitoUser {
   event_id?: string; // Event ID
 }
 
+// Lambda Authorizer types
+export interface APIGatewayAuthorizerEvent {
+  type: string;
+  authorizationToken: string;
+  methodArn: string;
+}
+
+export interface PolicyStatement {
+  Action: string;
+  Effect: 'Allow' | 'Deny';
+  Resource: string;
+}
+
+export interface PolicyDocument {
+  Version: string;
+  Statement: PolicyStatement[];
+}
+
+export interface AuthorizerResponse {
+  principalId: string;
+  policyDocument: PolicyDocument;
+  context?: {
+    [key: string]: string | number | boolean;
+  };
+}
+
 export interface AuthorizerContext {
   principalId: string;
   claims: CognitoUser;
@@ -35,6 +61,9 @@ export interface APIGatewayProxyEventV2WithAuth {
       jwt?: {
         claims: CognitoUser;
         scopes?: string[];
+      };
+      lambda?: {
+        [key: string]: string;
       };
     };
     http: {
@@ -57,8 +86,7 @@ export interface AuthenticatedUser {
 // User roles for authorization
 export enum UserRole {
   ADMIN = 'admin',
-  USER = 'user',
-  VIEWER = 'viewer'
+  USER = 'user'
 }
 
 export interface AuthContext {

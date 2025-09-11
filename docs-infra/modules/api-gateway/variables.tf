@@ -24,3 +24,8 @@ variable "log_retention_days" {
   type        = number
   default     = 14
 }
+
+variable "cognito_user_pool_arn" {
+  description = "ARN of the Cognito User Pool for authorization"
+  type        = string
+}

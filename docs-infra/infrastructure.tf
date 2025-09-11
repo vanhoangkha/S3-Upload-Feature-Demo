@@ -51,10 +51,11 @@ module "iam" {
 module "api_gateway" {
   source = "./modules/api-gateway"
 
-  project_name      = var.project_name
-  environment       = var.environment
-  lambda_invoke_arn = module.lambda.invoke_arn
-  stage_name        = var.environment
+  project_name          = var.project_name
+  environment           = var.environment
+  lambda_invoke_arn     = module.lambda.invoke_arn
+  stage_name            = var.environment
+  cognito_user_pool_arn = module.cognito.user_pool_arn
 }
 
 # Lambda Function

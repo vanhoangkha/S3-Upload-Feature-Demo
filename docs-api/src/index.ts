@@ -5,7 +5,7 @@ import { prettyJSON } from 'hono/pretty-json';
 import { documents } from './routes/documents';
 import { ApiResponse } from './types';
 import { config } from './utils/aws-config';
-import { optionalAuthMiddleware } from './middleware/auth';
+import { authMiddleware } from './middleware/auth';
 import { logger } from './utils/logger';
 
 const app = new Hono();
@@ -31,7 +31,7 @@ app.use('*', cors({
 }));
 
 // Add optional authentication middleware to extract user context
-app.use('*', optionalAuthMiddleware);
+app.use('*', authMiddleware);
 
 // Health check endpoint
 app.get('/health', (c) => {
@@ -48,7 +48,7 @@ app.get('/health', (c) => {
 });
 
 // API routes
-app.route('/vib-documents-function/api/documents', documents);
+app.route('/api/documents', documents);
 
 // Root endpoint
 app.get('/', (c) => {
@@ -58,14 +58,14 @@ app.get('/', (c) => {
     data: {
       endpoints: [
         'GET /health - Health check',
-        'GET /vib-documents-function/api/documents - List documents',
-        'GET /vib-documents-function/api/documents/folders - List folders and files',
-        'POST /vib-documents-function/api/documents/folders - Create folder',
-        'POST /vib-documents-function/api/documents/presigned-url - Generate presigned URLs',
-        'POST /vib-documents-function/api/documents - Create document',
-        'GET /vib-documents-function/api/documents/:user_id/:file - Get document',
-        'GET /vib-documents-function/api/documents/:user_id/:file/download - Get download URL',
-        'DELETE /vib-documents-function/api/documents/:user_id/:file - Delete document'
+        'GET /api/documents - List documents',
+        'GET /api/documents/folders - List folders and files',
+        'POST /api/documents/folders - Create folder',
+        'POST /api/documents/presigned-url - Generate presigned URLs',
+        'POST /api/documents - Create document',
+        'GET /api/documents/:user_id/:file - Get document',
+        'GET /api/documents/:user_id/:file/download - Get download URL',
+        'DELETE /api/documents/:user_id/:file - Delete document'
       ]
     }
   });

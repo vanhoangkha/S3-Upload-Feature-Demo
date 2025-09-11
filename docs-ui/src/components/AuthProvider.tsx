@@ -1,8 +1,10 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { getCurrentUser, signIn, signOut, signUp, confirmSignUp, fetchAuthSession } from 'aws-amplify/auth';
 import { Hub } from 'aws-amplify/utils';
+import { useNavigate } from 'react-router-dom';
 import { Spinner, Box } from '@cloudscape-design/components';
 import { AuthContextType, AuthenticatedUser } from '../types/auth';
+import { queryClient } from '../providers/QueryProvider';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -21,6 +23,17 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  const clearUserSession = useCallback(() => {
+    setUser(null);
+    // Clear all React Query cache data
+    queryClient.clear();
+    // Clear navigation history and redirect to login without any state
+    navigate('/login', { replace: true, state: null });
+    // Clear any potential browser history stack by replacing multiple times
+    window.history.replaceState(null, '', '/login');
+  }, [navigate]);
 
   useEffect(() => {
     checkAuthState();
@@ -33,14 +46,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         checkAuthState();
       }
       if (event === 'signedOut') {
-        setUser(null);
+        clearUserSession();
       }
     });
 
     return () => {
       listener();
     };
-  }, []);
+  }, [clearUserSession]);
 
   const checkAuthState = async () => {
     try {
@@ -81,7 +94,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const handleSignOut = async (): Promise<void> => {
     try {
       await signOut();
-      setUser(null);
+      clearUserSession();
     } catch (error) {
       console.error('Error signing out:', error);
       throw error;

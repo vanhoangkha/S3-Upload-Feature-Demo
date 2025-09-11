@@ -27,8 +27,6 @@ export interface AuthContextType {
   isAdmin: boolean;
 }
 
-export type UserRole = 'admin' | 'user' | 'viewer';
-
 export interface LoginFormData {
   username: string;
   password: string;

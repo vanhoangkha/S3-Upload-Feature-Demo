@@ -429,7 +429,7 @@ documents.post('/', authMiddleware, async (c) => {
     const document = await documentService.createDocument({
       ...data,
       user_id: targetUserId,
-      uploadedBy: currentUser.email || currentUser.username || currentUser.userId
+      uploadedBy: currentUser.userId
     });
 
     return c.json<ApiResponse>({

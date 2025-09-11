@@ -32,3 +32,13 @@ output "unauthenticated_role_arn" {
   description = "ARN of the unauthenticated IAM role"
   value       = aws_iam_role.unauthenticated.arn
 }
+
+output "admin_group_name" {
+  description = "Name of the admin Cognito user pool group"
+  value       = aws_cognito_user_group.admin.name
+}
+
+output "admin_group_role_arn" {
+  description = "ARN of the admin group IAM role"
+  value       = aws_iam_role.admin_group_role.arn
+}

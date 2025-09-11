@@ -43,6 +43,77 @@ resource "aws_cognito_user_pool" "main" {
   }
 }
 
+# Cognito User Pool Group for Admin users
+resource "aws_cognito_user_group" "admin" {
+  name         = "admin"
+  user_pool_id = aws_cognito_user_pool.main.id
+  description  = "Administrator group with elevated permissions"
+  precedence   = 1
+
+  role_arn = aws_iam_role.admin_group_role.arn
+}
+
+# IAM role for admin group
+resource "aws_iam_role" "admin_group_role" {
+  name = "${var.project_name}-${var.environment}-cognito-admin-group-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = "cognito-identity.amazonaws.com"
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "cognito-identity.amazonaws.com:aud" = aws_cognito_identity_pool.main.id
+          }
+          "ForAnyValue:StringLike" = {
+            "cognito-identity.amazonaws.com:amr" = "authenticated"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-cognito-admin-group-role"
+    Environment = var.environment
+  }
+}
+
+# Enhanced S3 access policy for admin group users
+resource "aws_iam_role_policy" "admin_group_s3_policy" {
+  name = "${var.project_name}-${var.environment}-admin-s3-policy"
+  role = aws_iam_role.admin_group_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          "${var.document_store_bucket_arn}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket"
+        ]
+        Resource = var.document_store_bucket_arn
+      }
+    ]
+  })
+}
+
 # Cognito User Pool Client
 resource "aws_cognito_user_pool_client" "main" {
   name         = "${var.project_name}-${var.environment}-app-client"

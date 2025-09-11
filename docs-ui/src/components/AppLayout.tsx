@@ -43,7 +43,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const handleLogout = async () => {
     try {
       await signOut();
-      navigate('/login');
+      // AuthProvider will handle the navigation and history clearing
     } catch (error) {
       console.error('Error signing out:', error);
     }

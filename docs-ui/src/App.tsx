@@ -14,8 +14,8 @@ Amplify.configure(awsExports);
 function App() {
   return (
     <QueryProvider>
-      <AuthProvider>
-        <Router>
+      <Router>
+        <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
@@ -55,8 +55,8 @@ function App() {
               </ProtectedRoute>
             } />
           </Routes>
-        </Router>
-      </AuthProvider>
+        </AuthProvider>
+      </Router>
     </QueryProvider>
   );
 }

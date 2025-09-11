@@ -304,8 +304,8 @@ export class DocumentService {
   // Check API health
   static async checkHealth(): Promise<boolean> {
     try {
-      // Get base URL without the /api/documents suffix for health check
-      const healthUrl = API_BASE_URL.replace('/vib-documents-function/api/documents', '/vib-documents-function') + '/health';
+      // Get base URL without the /api suffix for health check
+      const healthUrl = API_BASE_URL.replace('/api', '') + '/health';
       const response = await axios.get(healthUrl);
       return response.data.success || response.status === 200;
     } catch {
