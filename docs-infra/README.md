@@ -3,7 +3,7 @@
 This Terraform project sets up the AWS infrastructure for the Document Management System, including:
 
 - **S3 Buckets**: Document storage and web hosting
-- **DynamoDB Tables**: Document metadata and general data storage
+- **DynamoDB Tables**: Document metadata data storage
 - **Cognito**: User authentication and authorization
 - **Lambda Function**: HonoJS API backend
 - **API Gateway**: REST API endpoint
@@ -59,7 +59,7 @@ The infrastructure supports a document management application with:
 ## Modules
 
 - `cognito` - User pool and identity pool
-- `dynamodb` - Document and general tables
+- `dynamodb` - Document tables
 - `s3` - Storage buckets with policies
 - `lambda` - API function with IAM role
 - `api-gateway` - REST API configuration

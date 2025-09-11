@@ -1,434 +1,399 @@
 # S3 Upload Feature Demo
 
-This project demonstrates a modern document management system with secure S3 uploads, featuring a backend API (docs-api) and a frontend UI (docs-ui) built with React and AWS Cloudscape Design System.
+A comprehensive cloud-native document management system demonstrating secure S3 file uploads with role-based access control. This project showcases modern serverless architecture patterns using AWS services, featuring a TypeScript-based backend API and a React frontend with AWS Cloudscape Design System.
 
 ![System Architecture](image/architecture.png)
 
-## System Architecture
+## 🏗️ Project Structure
 
-The system consists of two main components:
+```
+S3-Upload-Feature-Demo/
+├── docs-api/           # Backend API (HonoJS + TypeScript)
+├── docs-ui/            # Frontend React Application
+├── docs-infra/         # Terraform Infrastructure as Code
+└── image/              # Architecture diagrams
+```
 
-1. **Documentation API (docs-api)**
-   - Built with HonoJS, a lightweight, high-performance web framework
-   - Provides secure S3 presigned URLs for document uploads
-   - Manages document metadata in DynamoDB
-   - Supports document operations (upload, download, list, delete)
+## 🚀 System Architecture
 
-2. **Documentation UI (docs-ui)**
-   - Built with React 19 and AWS Cloudscape Design System
-   - Provides a user-friendly interface for document management
-   - Features responsive design for desktop and mobile devices
-   - Includes document upload with progress tracking
+### Core Components
 
-## AWS Architecture
+**1. Backend API (`docs-api`)**
 
-### Infrastructure Components
+- **Framework**: HonoJS - Ultra-fast, lightweight web framework
+- **Runtime**: Node.js with TypeScript
+- **Storage**: AWS S3 with presigned URLs for secure uploads
+- **Database**: DynamoDB for document metadata
+- **Authentication**: Role-based access control (Admin/Vendor)
+- **Deployment**: AWS Lambda with API Gateway
 
-1. **Authentication & Authorization**
-   - Amazon Cognito for user authentication
-   - IAM roles and policies for fine-grained access control
-   - JWT tokens for secure API communication
+**2. Frontend UI (`docs-ui`)**
 
-2. **Storage Layer**
-   - Amazon S3 for document storage
-     - Separate buckets for documents and web assets
-     - Vendor-based folder structure
-     - Lifecycle policies for cost optimization
-   - DynamoDB for metadata storage
-     - Document information and permissions
-     - User and vendor data
-     - Fast and scalable access patterns
+- **Framework**: React 19 with TypeScript
+- **UI Library**: AWS Cloudscape Design System
+- **State Management**: TanStack React Query
+- **Routing**: React Router v7
+- **Authentication**: AWS Amplify integration
+- **Features**: Tree-view document navigation, drag-and-drop uploads
 
-3. **Compute Resources**
-   - AWS Lambda for serverless API endpoints
-   - API Gateway for RESTful API management
-   - CloudFront for content delivery and caching
+**3. Infrastructure (`docs-infra`)**
 
-4. **Security & Compliance**
-   - AWS KMS for encryption key management
-   - CloudWatch for monitoring and logging
-   - AWS WAF for web application firewall
-   - SSL/TLS encryption for data in transit
+- **IaC Tool**: Terraform
+- **Modules**: S3, DynamoDB, Lambda, API Gateway, Cognito, IAM
+- **Environment**: Configurable multi-environment setup
 
-### Data Flow
+## ☁️ AWS Infrastructure
 
-1. **User Authentication Flow**
-   - User logs in through Cognito
-   - JWT token issued for API access
-   - Token validated on each API request
+### Architecture Components
 
-2. **Document Upload Flow**
-   - Client requests presigned URL from API
-   - Uploads directly to S3 using presigned URL
-   - API updates metadata in DynamoDB
-   - CloudFront caches static assets
+**Authentication & Authorization**
 
-3. **Document Download Flow**
-   - Client requests document access
-   - API validates permissions
-   - Generates temporary S3 URL
-   - Client downloads through CloudFront
+- **Amazon Cognito**: User pool management and JWT token authentication
+- **IAM Roles**: Fine-grained permissions for different user roles
+- **Role-Based Access Control**: Admin and Vendor role separation
 
-4. **Document Management Flow**
-   - Role-based access control checks
-   - DynamoDB queries for document listing
-   - S3 operations for file management
-   - Audit logging for all operations
+**Storage & Database**
 
-### Security Features
+- **Amazon S3**:
+  - Document storage with vendor-based folder structure
+  - Presigned URLs for secure, time-limited access
+  - CloudFront integration for global content delivery
+- **DynamoDB**:
+  - Document metadata and user permissions
+  - Scalable NoSQL database with on-demand pricing
+  - Efficient query patterns for document operations
 
-1. **Authentication & Authorization**
-   - Multi-factor authentication support
-   - Role-based access control (RBAC)
-   - Temporary credentials for S3 access
-   - API request signing
+**Compute & API**
 
-2. **Data Protection**
-   - Server-side encryption for S3
-   - Encryption at rest and in transit
-   - Secure key management
-   - Regular security audits
+- **AWS Lambda**: Serverless function execution
+- **API Gateway**: RESTful API management and routing
+- **CloudFront**: Content delivery network for static assets
 
-3. **Access Control**
-   - Fine-grained IAM policies
-   - S3 bucket policies
-   - CORS configuration
-   - IP-based restrictions
+**Security & Monitoring**
 
-### Scalability Features
+- **AWS KMS**: Encryption key management
+- **CloudWatch**: Logging and monitoring
+- **SSL/TLS**: End-to-end encryption
 
-1. **Serverless Architecture**
-   - Auto-scaling Lambda functions
-   - Pay-per-use pricing model
-   - No server management required
-   - High availability across regions
+### Document Access Flow
 
-2. **Storage Scalability**
-   - Unlimited S3 storage
-   - DynamoDB auto-scaling
-   - Efficient caching with CloudFront
-   - Cost-effective storage tiers
+1. **Authentication**: User authenticates via Cognito
+2. **Authorization**: JWT token validates user permissions
+3. **Upload Request**: Frontend requests presigned URL from API
+4. **Direct Upload**: File uploads directly to S3 (bypassing server)
+5. **Metadata Storage**: Document information stored in DynamoDB
+6. **Access Control**: Role-based permissions enforced on all operations
 
-3. **Performance Optimization**
-   - Global CDN distribution
-   - Edge caching
-   - Parallel processing
-   - Optimized data access patterns
+## ✨ Key Features
 
-## AWS Cost Analysis - S3 Upload Feature Demo
+### 🗂️ Vendor-Based Organization
 
-📍 Singapore Region (ap-southeast-1) - 1000 Users/Month
+- **Isolated Storage**: Each vendor has dedicated S3 folder structure
+- **Secure Access**: Role-based permissions prevent cross-vendor access
+- **Hierarchical Navigation**: Tree-view interface for intuitive browsing
 
-### 🔢 USAGE ASSUMPTIONS
+### � Role-Based Access Control
 
-| Metric | Value | Basis |
-|---|---|---|
-| Users | 1,000 | Project requirement |
-| Avg files/user/month | 50 | Document management pattern |
-| Avg file size | 2MB | Mixed docs (PDFs, images, text) |
-| Storage growth | 100GB/month | 1,000 users × 50 files × 2MB |
-| API calls | 5M/month | CRUD operations + authentication |
-| Data transfer out | 500GB/month | Download/preview activities |
-| Web assets | 2GB | Static files (JS, CSS, images) |
+**Admin Role:**
 
-### 💰 DETAILED COST BREAKDOWN
+- Full access to all vendor documents
+- Complete CRUD operations across the system
+- User and vendor management capabilities
+- System-wide analytics and reporting
 
-#### 🗂️ Amazon S3 Storage
+**Vendor Role:**
 
-| Component | Usage | Rate (Singapore) | Cost |
-|---|---|---|---|
-| Standard Storage | 102GB | $0.025/GB | $2.55 |
-| PUT Requests | 100,000 | $0.005/1k | $0.50 |
-| GET Requests | 500,000 | $0.0004/1k | $0.20 |
-| Data Transfer to CloudFront | 500GB | $0.00 | $0.00 |
-| **Total S3** | | | **$3.25** |
+- Access limited to own folder structure
+- Upload, download, and manage own documents only
+- Cannot view or access other vendors' data
+- Streamlined vendor-specific interface
 
-#### 🚀 Amazon CloudFront CDN
+### 📁 Document Management
 
-| Component | Usage | Rate (Singapore) | Cost |
-|---|---|---|---|
-| Data Transfer Out | 500GB | $0.120/GB | $60.00 |
-| HTTP/HTTPS Requests | 10M | $0.0075/10k | $7.50 |
-| Origin Requests | 1M | Included | $0.00 |
-| **Total CloudFront** | | | **$67.50** |
+- **Drag & Drop Upload**: Modern file upload experience
+- **Progress Tracking**: Real-time upload progress indicators
+- **File Preview**: In-browser preview for supported formats
+- **Bulk Operations**: Multiple file selection and operations
+- **Search & Filter**: Advanced document discovery features
 
-Note: Singapore trong price class 3 (most expensive) với rate $0.120/GB
+### 🔒 Security Features
 
-#### 🔌 API Gateway (HTTP API)
+- **Presigned URLs**: Time-limited, secure S3 access
+- **JWT Authentication**: Stateless token-based security
+- **CORS Protection**: Cross-origin request security
+- **Encryption**: Data encrypted in transit and at rest
 
-| Component | Usage | Rate | Cost |
-|---|---|---|---|
-| API Calls | 5M | $1.00/million | $5.00 |
-| Data Transfer | 50GB | $0.09/GB | $4.50 |
-| **Total API Gateway** | | | **$9.50** |
+## 💰 AWS Cost Analysis
 
-#### ⚡ AWS Lambda
+**Singapore Region (ap-southeast-1) - 1000 Users/Month**
 
-| Component | Usage | Rate | Cost |
-|---|---|---|---|
-| Requests | 5M | $0.20/million | $1.00 |
-| Duration (128MB, 200ms avg) | 166.67 GB-seconds | $0.0000166667/GB-sec | $2.78 |
-| **Total Lambda** | | | **$3.78** |
+### Usage Assumptions
 
-#### 📅 DynamoDB (On-Demand)
+| Metric | Value | Description |
+|--------|-------|-------------|
+| Users | 1,000 | Active monthly users |
+| Files per user | 50/month | Document uploads per user |
+| Average file size | 2MB | Mixed document types |
+| API calls | 5M/month | All CRUD operations |
+| Data transfer | 500GB/month | Downloads and previews |
 
-| Component | Usage | Rate | Cost |
-|---|---|---|---|
-| Write Requests | 500k | $1.25/million | $0.63 |
-| Read Requests | 1M | $0.25/million | $0.25 |
-| Storage | 1GB | $0.25/GB | $0.25 |
-| **Total DynamoDB** | | | **$1.13** |
+### Monthly Cost Breakdown
 
-#### 🔐 Amazon Cognito
+| Service | Usage | Monthly Cost |
+|---------|-------|-------------|
+| **S3 Storage** | 102GB storage + requests | $3.25 |
+| **CloudFront CDN** | 500GB transfer + 10M requests | $67.50 |
+| **API Gateway** | 5M API calls + 50GB transfer | $9.50 |
+| **Lambda** | 5M requests + compute time | $3.78 |
+| **DynamoDB** | 1.5M requests + 1GB storage | $1.13 |
+| **Cognito** | 950 active users | $5.23 |
+| **Total Monthly Cost** | | **$90.39** |
 
-| Component | Usage | Rate | Cost |
-|---|---|---|---|
-| Monthly Active Users | 950 MAU | $0.0055/MAU | $5.23 |
-| (First 50 MAU free) | | | |
-| **Total Cognito** | | | **$5.23** |
+*Cost estimates based on AWS pricing in Singapore region as of 2025*
 
-### 📊 TOTAL MONTHLY COST: $90.39
+## 🛠️ Technology Stack
 
-## Key Features
+### Backend (docs-api)
 
-### Vendor-Based Bucket Structure
-- Each vendor has a dedicated folder within the S3 bucket
-- Hierarchical organization for better document management
-- Logical separation of vendor documents for improved security and organization
+```typescript
+Framework: HonoJS v4.0+ (Ultra-fast web framework)
+Runtime: Node.js with TypeScript
+AWS SDK: v3.500+ (S3, DynamoDB, Lambda)
+Dependencies:
+  - @hono/node-server: HTTP server adapter
+  - @aws-sdk/s3-request-presigner: Secure URL generation
+  - uuid: Unique identifier generation
+```
 
-### Role-Based Access Control Matrix
-- **Vendor Role**: Limited access to their own folder only
-  - Can upload, download, and view their own documents
-  - Cannot access other vendors' documents
-  - Limited visibility within the UI
-- **Admin Role**: Full access to all vendor folders
-  - Complete management of all documents across vendors
-  - Can perform administrative operations
-  - Full visibility of the entire document hierarchy
+### Frontend (docs-ui)
 
-### File Operations with Permission Controls
-- **Upload**: Controlled by role permissions
-- **Download**: Access restricted based on user role
-- **Delete**: Limited to authorized users based on role
-- All operations respect the permission boundaries
+```typescript
+Framework: React 19 with TypeScript
+UI Library: AWS Cloudscape Design System v3.0+
+State Management: TanStack React Query v5.80+
+Routing: React Router v7.6+
+Authentication: AWS Amplify v6.15+
+HTTP Client: Axios
+Utilities: filesize, uuid
+```
 
-### Tree View User Interface
-- Hierarchical display of folders and documents
-- Intuitive navigation through the vendor folder structure
-- Expandable/collapsible folders for better organization
-- Visual indicators for document types and permissions
+### Infrastructure (docs-infra)
 
-### Optional: Cross-Account Synchronization
-- Ability to sync documents across different AWS accounts
-- Maintain consistent document versions across environments
-- Secure transfer mechanisms between accounts
-- Configurable sync schedules and policies
+```hcl
+IaC: Terraform v1.0+
+Provider: AWS Provider v6.11+
+Modules: S3, DynamoDB, Lambda, API Gateway, Cognito, IAM
+Archive: terraform-archive v2.4+
+Environment: Multi-environment support
+```
 
-## Prerequisites
+## 📋 Prerequisites
 
-Before starting, ensure you have:
+Before getting started, ensure you have:
 
-- Node.js (v16 or later)
-- AWS CLI configured with appropriate permissions
-- npm or yarn package manager
-- AWS resources deployed (S3 buckets, DynamoDB tables)
+- **Node.js**: v16 or later
+- **AWS CLI**: Configured with appropriate permissions
+- **Terraform**: v1.0+ for infrastructure deployment
+- **Package Manager**: npm or yarn
+- **AWS Account**: With sufficient permissions for S3, Lambda, DynamoDB, etc.
 
-## Running the Documentation API (docs-api)
+## 🚀 Quick Start
 
-### Installation
-
-1. Navigate to the docs-api directory:
-   ```bash
-   cd docs-api
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Configure environment variables:
-   Create a `.env` file in the docs-api directory with the following variables:
-   ```
-   # AWS Configuration
-   AWS_REGION=us-east-1
-   
-   # DynamoDB Tables
-   DOCUMENTS_TABLE_NAME=Documents
-   GENERAL_TABLE_NAME=General
-   
-   # S3 Buckets
-   DOCUMENT_STORE_BUCKET_NAME=your-document-bucket-name
-   WEB_STORE_BUCKET_NAME=your-web-bucket-name
-   
-   # Local Development
-   PORT=3001
-   NODE_ENV=development
-   
-   # CORS allowed origins
-   ALLOWED_ORIGINS=http://localhost:3000
-   
-   # Presigned URL expiry (in seconds)
-   PRESIGNED_URL_EXPIRY=3600
-   ```
-
-### Running in Development Mode
+### 1. Infrastructure Deployment
 
 ```bash
+# Navigate to infrastructure directory
+cd docs-infra
+
+# Initialize Terraform
+terraform init
+
+# Review and customize terraform.tfvars
+cp terraform.tfvars.example terraform.tfvars
+
+# Plan deployment
+terraform plan
+
+# Deploy infrastructure
+terraform apply
+```
+
+### 2. Backend API Setup
+
+```bash
+# Navigate to API directory
+cd docs-api
+
+# Install dependencies
+npm install
+
+# Configure environment variables
+cp .env.example .env
+# Edit .env with your AWS resource names
+
+# Start development server
 npm run dev
 ```
 
-This will start the docs-api server in development mode with hot reloading enabled on port 3001.
+### 3. Frontend UI Setup
 
-### Available API Endpoints
+```bash
+# Navigate to UI directory
+cd docs-ui
+
+# Install dependencies
+npm install
+
+# Configure environment variables
+cp .env.example .env
+# Edit .env with API endpoint
+
+# Start development server
+npm start
+```
+
+## 📚 API Documentation
+
+### Authentication Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/health` | GET | Health check endpoint |
-| `/api/documents` | GET | List all documents for a user |
-| `/api/documents/presigned-url` | POST | Generate a presigned URL for S3 upload |
-| `/api/documents` | POST | Create document metadata after upload |
-| `/api/documents/:user_id/:file` | GET | Get document metadata |
-| `/api/documents/:user_id/:file/download` | GET | Get document download URL |
-| `/api/documents/:user_id/:file` | DELETE | Delete a document |
+| `/api/auth/validate` | POST | Validate JWT token |
+
+### Document Management
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/documents` | GET | List user documents |
+| `/api/documents/presigned-url` | POST | Generate upload URL |
+| `/api/documents` | POST | Create document metadata |
+| `/api/documents/:id` | GET | Get document details |
+| `/api/documents/:id/download` | GET | Get download URL |
+| `/api/documents/:id` | DELETE | Delete document |
+
+### Vendor Management (Admin Only)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
 | `/api/vendors` | GET | List all vendors |
-| `/api/vendors/:vendor_id/documents` | GET | List documents for a specific vendor |
+| `/api/vendors/:id/documents` | GET | List vendor documents |
 | `/api/roles` | GET | Get user role information |
 
-### Building for Production
+## 🚢 Deployment
 
-```bash
-npm run build
-```
+### Production Deployment Steps
 
-This will create a production-ready build in the `dist` directory.
+1. **Infrastructure First**
 
-### Running in Production Mode
+   ```bash
+   cd docs-infra
+   terraform apply -var="environment=production"
+   ```
 
-```bash
-npm start
-```
+2. **Build and Deploy API**
 
-## Running the Documentation UI (docs-ui)
+   ```bash
+   cd docs-api
+   npm run build:lambda
+   npm run package:lambda
+   # Deploy lambda-deployment.zip through AWS Console or CLI
+   ```
 
-### Installation
+3. **Build and Deploy UI**
 
-1. Navigate to the docs-ui directory:
    ```bash
    cd docs-ui
+   npm run build
+   # Deploy build/ directory to S3 static hosting or CloudFront
    ```
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Configure environment variables:
-   Create a `.env` file in the docs-ui directory with the following variables:
-   ```
-   # API Configuration
-   REACT_APP_API_URL=http://localhost:3001/api
-   
-   # Environment
-   REACT_APP_ENV=development
-   
-   # Default User (for demo purposes)
-   REACT_APP_DEFAULT_USER_ID=demo-user
-   
-   # Default Role (admin or vendor)
-   REACT_APP_DEFAULT_ROLE=admin
-   ```
-
-### Running in Development Mode
+### Environment Configuration
 
 ```bash
-npm start
+# docs-api/.env.production
+AWS_REGION=us-east-1
+DOCUMENTS_TABLE_NAME=production-documents
+DOCUMENT_STORE_BUCKET_NAME=production-docs-bucket
+NODE_ENV=production
+ALLOWED_ORIGINS=https://yourdomain.com
+
+# docs-ui/.env.production
+REACT_APP_API_URL=https://api.yourdomain.com
+REACT_APP_ENV=production
 ```
 
-This will start the development server on port 3000. Open your browser and navigate to `http://localhost:3000` to view the documentation UI.
-
-### Available Pages
-
-| Route | Description |
-|-------|-------------|
-| `/documents` | Main document listing page with tree view |
-| `/upload` | Document upload page |
-| `/vendors` | Vendor management (admin only) |
-| `/settings` | User settings and preferences |
-
-### Building for Production
+## 🔧 Development Commands
 
 ```bash
-npm run build
+# Root level commands
+npm run install:all      # Install all dependencies
+npm run dev:all         # Start all services in development
+npm run build:all       # Build all projects
+npm run test:all        # Run all tests
+
+# Individual project commands
+cd docs-api && npm run dev        # Start API server
+cd docs-ui && npm start          # Start UI development server
+cd docs-infra && terraform plan  # Plan infrastructure changes
 ```
 
-This will create a production-ready build in the `build` directory.
-
-## Running Both Components Together
-
-For convenience, you can use the following commands from the project root:
-
-1. Install dependencies for both components:
-   ```bash
-   npm run install:all
-   ```
-
-2. Start both services in development mode:
-   ```bash
-   npm run start:dev
-   ```
-
-## Troubleshooting
+## 🐛 Troubleshooting
 
 ### Common Issues
 
-1. **API Connection Error**:
-   - Ensure the docs-api server is running
-   - Check that the REACT_APP_API_URL in docs-ui .env file matches the docs-api server address
-   - Verify network connectivity between the services
+**API Connection Errors**
 
-2. **S3 Upload Failures**:
-   - Confirm that the S3 bucket specified in docs-api .env exists
-   - Check AWS credentials have proper permissions to access the bucket
-   - Verify the presigned URL hasn't expired (default is 1 hour)
+- ✅ Verify API server is running on correct port
+- ✅ Check CORS configuration in API environment
+- ✅ Validate frontend API URL configuration
 
-3. **CORS Issues**:
-   - Ensure the frontend origin is listed in the ALLOWED_ORIGINS environment variable in docs-api
-   - Check browser console for CORS-related errors
+**S3 Upload Failures**
 
-4. **Permission Errors**:
-   - Verify user role assignments in the database
-   - Check IAM policies for proper S3 and DynamoDB access
-   - Ensure bucket policies allow the necessary operations
+- ✅ Confirm S3 bucket exists and is accessible
+- ✅ Check AWS credentials and IAM permissions
+- ✅ Verify presigned URL hasn't expired (default: 1 hour)
 
-5. **Tree View Display Issues**:
-   - Clear browser cache if tree structure doesn't update
-   - Check network requests for proper data loading
-   - Verify folder structure permissions match user role
+**Authentication Issues**
 
-## Technology Stack
+- ✅ Validate Cognito user pool configuration
+- ✅ Check JWT token expiration
+- ✅ Verify user role assignments in DynamoDB
 
-### Backend (docs-api)
-- HonoJS web framework
-- AWS SDK v3 for JavaScript
-- TypeScript
-- DynamoDB for document metadata and permissions
-- S3 for document storage with folder structure
-- IAM for role-based access control
+**Permission Denied Errors**
 
-### Frontend (docs-ui)
-- React 19
-- TypeScript
-- AWS Cloudscape Design System
-- React Router v7
-- Axios for API requests
-- Tree component for hierarchical document display
+- ✅ Review IAM policies for required permissions
+- ✅ Check S3 bucket policies
+- ✅ Validate user role-based access controls
 
-## Security Features
+**Infrastructure Deployment Issues**
 
-- Presigned URLs for secure, temporary S3 access
-- Role-based access control for documents
-- Vendor isolation through folder structure
-- CORS protection
-- Environment-based configuration
-- No direct exposure of AWS credentials to the frontend
+- ✅ Ensure Terraform state is properly managed
+- ✅ Verify AWS provider credentials
+- ✅ Check for naming conflicts in resource names
+
+### Logging and Monitoring
+
+- **CloudWatch Logs**: Monitor Lambda function execution
+- **API Gateway Logs**: Track request/response patterns
+- **S3 Access Logs**: Monitor bucket access patterns
+- **DynamoDB Metrics**: Track read/write capacity usage
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'Add amazing feature'`
+4. Push to branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [HonoJS](https://hono.dev/) - Ultra-fast web framework
+- [AWS Cloudscape](https://cloudscape.design/) - Design system
+- [React Query](https://tanstack.com/query) - Data fetching library
+- [Terraform](https://terraform.io/) - Infrastructure as Code

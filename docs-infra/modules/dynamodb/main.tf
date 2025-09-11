@@ -49,30 +49,3 @@ resource "aws_dynamodb_table" "documents" {
     Purpose     = "Document metadata storage"
   }
 }
-
-resource "aws_dynamodb_table" "general" {
-  name         = "General"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "pk"
-  range_key    = "sk"
-
-  attribute {
-    name = "pk"
-    type = "S"
-  }
-
-  attribute {
-    name = "sk"
-    type = "S"
-  }
-
-  point_in_time_recovery {
-    enabled = var.enable_point_in_time_recovery
-  }
-
-  tags = {
-    Name        = "General"
-    Environment = var.environment
-    Purpose     = "General data storage"
-  }
-}

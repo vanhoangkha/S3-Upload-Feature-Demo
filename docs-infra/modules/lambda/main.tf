@@ -3,12 +3,6 @@ data "archive_file" "lambda_package" {
   type        = "zip"
   source_dir  = var.source_code_path
   output_path = "${path.module}/lambda-deployment.zip"
-  excludes = [
-    "node_modules",
-    "*.zip",
-    ".env",
-    "*.log"
-  ]
 }
 
 # Lambda function
@@ -26,7 +20,6 @@ resource "aws_lambda_function" "api" {
   environment {
     variables = {
       DOCUMENTS_TABLE_NAME       = var.documents_table_name
-      GENERAL_TABLE_NAME         = var.general_table_name
       DOCUMENT_STORE_BUCKET_NAME = var.document_store_bucket_name
       WEB_STORE_BUCKET_NAME      = var.web_store_bucket_name
       COGNITO_USER_POOL_ID       = var.cognito_user_pool_id

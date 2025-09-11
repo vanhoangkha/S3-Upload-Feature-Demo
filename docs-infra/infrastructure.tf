@@ -1,6 +1,12 @@
 # Local values for computed resources
 locals {
   lambda_source_path = "${path.root}/../docs-api/dist"
+
+  # Combine user-defined CORS origins with the web static host URL
+  cors_allowed_origins = concat(
+    var.cors_allowed_origins
+    # ["http://${module.s3.web_store_website_endpoint}"]
+  )
 }
 
 # DynamoDB Tables
@@ -18,7 +24,7 @@ module "s3" {
   environment          = var.environment
   bucket_suffix        = var.s3_bucket_suffix
   enable_versioning    = var.enable_s3_versioning
-  cors_allowed_origins = var.cors_allowed_origins
+  cors_allowed_origins = local.cors_allowed_origins
 }
 
 # Cognito User Pool and Identity Pool
@@ -28,8 +34,8 @@ module "cognito" {
   project_name              = var.project_name
   environment               = var.environment
   password_policy           = var.cognito_password_policy
-  callback_urls             = var.cors_allowed_origins
-  logout_urls               = var.cors_allowed_origins
+  callback_urls             = local.cors_allowed_origins
+  logout_urls               = local.cors_allowed_origins
   document_store_bucket_arn = module.s3.document_store_bucket_arn
 }
 
@@ -40,7 +46,6 @@ module "iam" {
   project_name              = var.project_name
   environment               = var.environment
   documents_table_arn       = module.dynamodb.documents_table_arn
-  general_table_arn         = module.dynamodb.general_table_arn
   document_store_bucket_arn = module.s3.document_store_bucket_arn
   web_store_bucket_arn      = module.s3.web_store_bucket_arn
   user_pool_arn             = module.cognito.user_pool_arn
@@ -60,8 +65,7 @@ module "api_gateway" {
 
 # Lambda Function
 module "lambda" {
-  source = "./modules/lambda"
-
+  source                     = "./modules/lambda"
   project_name               = var.project_name
   environment                = var.environment
   source_code_path           = local.lambda_source_path
@@ -70,10 +74,9 @@ module "lambda" {
   memory_size                = var.lambda_memory_size
   aws_region                 = var.aws_region
   documents_table_name       = module.dynamodb.documents_table_name
-  general_table_name         = module.dynamodb.general_table_name
   document_store_bucket_name = module.s3.document_store_bucket_name
   web_store_bucket_name      = module.s3.web_store_bucket_name
   cognito_user_pool_id       = module.cognito.user_pool_id
-  cors_allowed_origins       = var.cors_allowed_origins
+  cors_allowed_origins       = local.cors_allowed_origins
   api_gateway_execution_arn  = module.api_gateway.execution_arn
 }

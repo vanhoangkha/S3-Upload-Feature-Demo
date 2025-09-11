@@ -17,7 +17,6 @@ The API integrates with the following AWS services deployed via `s3-upload-infra
 
 - **DynamoDB Tables**:
   - `Documents`: Stores document metadata with `user_id` (hash key) and `file` (range key)
-  - `General`: Additional data storage
 - **S3 Buckets**:
   - `vibdmsstore2026`: Document storage bucket
   - `vibdmswebstore2026`: Web assets bucket
@@ -28,7 +27,7 @@ The API integrates with the following AWS services deployed via `s3-upload-infra
 - Node.js 18+ and npm
 - **AWS Account with appropriate permissions**
 - **AWS CLI configured** or appropriate AWS credentials for:
-  - DynamoDB read/write access to `Documents` and `General` tables
+  - DynamoDB read/write access to `Documents` tables
   - S3 read/write access to `vibdmsstore2026` and `vibdmswebstore2026` buckets
 - Access to the deployed AWS infrastructure from `s3-upload-infra`
 
@@ -89,7 +88,6 @@ aws configure
    
    # DynamoDB Tables (from s3-upload-infra)
    DOCUMENTS_TABLE_NAME=Documents
-   GENERAL_TABLE_NAME=General
    
    # S3 Buckets (from s3-upload-infra)
    DOCUMENT_STORE_BUCKET_NAME=vibdmsstore2026
@@ -329,7 +327,7 @@ All API responses follow this format:
 
 2. **DynamoDB Access Denied**:
    - **Problem**: `AccessDenied` when accessing DynamoDB tables
-   - **Solution**: Verify your IAM user has `DynamoDBFullAccess` or the specific permissions for the `Documents` and `General` tables
+   - **Solution**: Verify your IAM user has `DynamoDBFullAccess` or the specific permissions for the `Documents` tables
 
 3. **S3 Permissions Error**:
    - **Problem**: Cannot generate presigned URLs or access S3 buckets

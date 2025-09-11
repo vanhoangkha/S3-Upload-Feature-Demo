@@ -11,7 +11,7 @@ logger.configInfo('Configuration:');
 logger.configInfo(`  - Port: ${PORT}`);
 logger.configInfo(`  - Environment: ${process.env.NODE_ENV || 'development'}`);
 logger.configInfo(`  - AWS Region: ${config.region}`);
-logger.configInfo(`  - DynamoDB Tables: ${config.documentsTableName}, ${config.generalTableName}`);
+logger.configInfo(`  - DynamoDB Tables: ${config.documentsTableName}`);
 logger.configInfo(`  - S3 Buckets: ${config.documentStoreBucketName}, ${config.webStoreBucketName}`);
 logger.configInfo(`  - CORS Origins: *`);
 

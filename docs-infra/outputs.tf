@@ -22,6 +22,16 @@ output "web_store_bucket_name" {
   value       = module.s3.web_store_bucket_name
 }
 
+output "web_store_website_endpoint" {
+  description = "S3 static website endpoint for docs-ui"
+  value       = module.s3.web_store_website_endpoint
+}
+
+output "web_store_website_url" {
+  description = "Full HTTP URL for the static website"
+  value       = "http://${module.s3.web_store_website_endpoint}"
+}
+
 # ===========================================
 # DynamoDB Table Outputs
 # ===========================================
@@ -29,11 +39,6 @@ output "web_store_bucket_name" {
 output "documents_table_name" {
   description = "Name of the Documents DynamoDB table"
   value       = module.dynamodb.documents_table_name
-}
-
-output "general_table_name" {
-  description = "Name of the General DynamoDB table"
-  value       = module.dynamodb.general_table_name
 }
 
 # ===========================================
@@ -97,7 +102,6 @@ output "api_env_config" {
   value = {
     AWS_REGION                 = var.aws_region
     DOCUMENTS_TABLE_NAME       = module.dynamodb.documents_table_name
-    GENERAL_TABLE_NAME         = module.dynamodb.general_table_name
     DOCUMENT_STORE_BUCKET_NAME = module.s3.document_store_bucket_name
     WEB_STORE_BUCKET_NAME      = module.s3.web_store_bucket_name
     COGNITO_USER_POOL_ID       = module.cognito.user_pool_id
@@ -139,6 +143,7 @@ output "deployment_summary" {
     project_name             = var.project_name
     aws_region               = var.aws_region
     api_url                  = module.api_gateway.invoke_url
+    website_url              = "http://${module.s3.web_store_website_endpoint}"
     cognito_user_pool_id     = module.cognito.user_pool_id
     s3_document_bucket       = module.s3.document_store_bucket_name
     s3_web_bucket            = module.s3.web_store_bucket_name

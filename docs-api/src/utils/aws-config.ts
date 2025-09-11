@@ -23,7 +23,6 @@ export const s3Client = new S3Client(awsConfig);
 // Environment variables
 export const config = {
   documentsTableName: process.env.DOCUMENTS_TABLE_NAME || 'Documents',
-  generalTableName: process.env.GENERAL_TABLE_NAME || 'General',
   documentStoreBucketName: process.env.DOCUMENT_STORE_BUCKET_NAME || 'vibdmsstore2026',
   webStoreBucketName: process.env.WEB_STORE_BUCKET_NAME || 'vibdmswebstore2026',
   region: process.env.AWS_REGION || 'us-east-1',

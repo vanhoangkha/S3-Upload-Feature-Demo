@@ -49,9 +49,7 @@ resource "aws_iam_role_policy" "lambda_dynamodb_policy" {
         ]
         Resource = [
           var.documents_table_arn,
-          "${var.documents_table_arn}/index/*",
-          var.general_table_arn,
-          "${var.general_table_arn}/index/*"
+          "${var.documents_table_arn}/index/*"
         ]
       }
     ]
